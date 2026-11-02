@@ -1,7 +1,9 @@
 cff-version: 1.2.0
 message: >-
   If you use this software, please cite it using the metadata below.
-  A DOI will be added here once the first release is archived on Zenodo.
+  The DOI is the Zenodo concept DOI, which always resolves to the
+  latest archived release; to cite a specific release, use its version
+  DOI from the list of identifiers or the Zenodo record.
 type: software
 title: >-
   deppro: depth-composition reconstruction from angle-resolved X-ray
@@ -15,6 +17,14 @@ authors:
       Kyoto University, Kyoto, Japan
 version: 0.1.0
 date-released: '2026-11-02'
+doi: 10.5281/zenodo.23877023
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23877023
+    description: Concept DOI (all versions; resolves to the latest)
+  - type: doi
+    value: 10.5281/zenodo.23877024
+    description: Version DOI for v0.1.0
 license: MIT
 repository-code: 'https://github.com/stoyoda0012-cyber/depthprofiler'
 abstract: >-

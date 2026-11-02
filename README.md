@@ -1,5 +1,7 @@
 # depthprofiler (`deppro`)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23877023.svg)](https://doi.org/10.5281/zenodo.23877023)
+
 ## In English
 
 `deppro` reconstructs depth profiles of composition, D(z), in thin films
@@ -46,6 +48,21 @@ the documentation is in Japanese for now; English versions will follow.
   hand on macOS). Skipped tests (for example when an optional dependency or
   a user-supplied table set through `DEPPRO_*` is absent) are not counted
   as verified.
+
+### Citation
+
+If you use this software, please cite it via [CITATION.cff](CITATION.cff).
+Archived on Zenodo:
+
+- **All versions** (concept DOI; resolves to the latest):
+  [10.5281/zenodo.23877023](https://doi.org/10.5281/zenodo.23877023)
+- **v0.1.0**:
+  [10.5281/zenodo.23877024](https://doi.org/10.5281/zenodo.23877024)
+
+When a result depends on this software, cite the version DOI of the
+release you used, not the all-versions DOI: the concept DOI resolves to
+whatever release is latest, so it does not say which code produced a
+number.
 
 ### Use of generative AI
 
@@ -152,6 +169,18 @@ API の入口は `TransferMatrix`（順モデル）と、`FreeSolver` / `SemiFre
   閾値を緩めずに失敗のまま残している。PR ごとの CI（回帰スイート）はこれらを外して回し、
   受入試験の状態は別のジョブで見せる（MLX のものは macOS で手動実行）。skip したテスト
   （optional の依存や、`DEPPRO_*` で利用者が渡す表が無いときなど）は、検証済みには数えない。
+
+## 引用
+
+使うときは [CITATION.cff](CITATION.cff) の情報で引用してほしい。Zenodo に保存してある。
+
+- **全版**（concept DOI。常に最新の版を指す）:
+  [10.5281/zenodo.23877023](https://doi.org/10.5281/zenodo.23877023)
+- **v0.1.0**:
+  [10.5281/zenodo.23877024](https://doi.org/10.5281/zenodo.23877024)
+
+結果がこのソフトウェアに依存するときは、全版の DOI ではなく、使った版の version DOI を引用する。
+concept DOI はその時点の最新版を指すので、どの版のコードで出した数値かを示せない。
 
 ## 生成 AI の利用
 
