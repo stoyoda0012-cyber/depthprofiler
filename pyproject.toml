@@ -1,0 +1,104 @@
+[build-system]
+# setuptools >= 77 for the PEP 639 string form of `license` / `license-files` (older
+# releases reject it at get_requires_for_build_wheel; checked at 76.1.0 vs 77.0.3)
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deppro"
+version = "0.1.0"
+description = "Depth-profile reconstruction from AR-XPS / HAXPES (classical + NN inverse solvers)"
+requires-python = ">=3.11"
+authors = [{ name = "Satoshi Toyoda" }]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = [
+    "XPS", "HAXPES", "angle-resolved XPS", "depth profile",
+    "inverse problem", "thin films", "surface analysis",
+]
+# No License :: classifier: with a PEP 639 `license` expression setuptools
+# rejects one. Python versions listed are the ones CI runs (3.11 weekly).
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "h5py>=3.8",
+    "pyyaml>=6.0",
+    "numba>=0.57",
+    # cross-section tables: haxpes.cross_section_extrap (CSV) and
+    # haxpes.cross_section_loader (Scofield / Yeh–Lindau .xlsx workbooks, read through openpyxl)
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+]
+
+[project.urls]
+# The public repository (repository name depthprofiler, import name deppro).
+Homepage = "https://github.com/stoyoda0012-cyber/depthprofiler"
+Repository = "https://github.com/stoyoda0012-cyber/depthprofiler"
+Documentation = "https://github.com/stoyoda0012-cyber/depthprofiler/tree/main/docs"
+Issues = "https://github.com/stoyoda0012-cyber/depthprofiler/issues"
+
+[project.optional-dependencies]
+# Neither sibling package is on PyPI, so the extras name the GitHub release tag
+# directly (PEP 508 direct reference). pip resolves these from a checkout, a
+# wheel or an sdist; an index upload would have to drop them. The pins are the
+# releases this package was checked against in a clean venv (see
+# docs/reproduction_records/). CI installs the same pins through the extras;
+# a weekly CI job also runs the regression suite against toyomacro's main.
+#   toyomacro   v0.3.1 = c7ecdbb43d84ac8034af59126de8e5dd2c8ab411
+#   dnndenoiser v0.1.2 = c375d3d8164beaf9a21390646aa8a3f04eaf9f46
+# (v0.1.2 carries the network class the bridge needs; running dnndenoiser's own
+#  ``infer`` on a measured frame stack needs a later dnndenoiser release.)
+# DNN-denoise bridge (haxpes/denoiser.py). deppro.inference (NN inverse solver)
+# additionally needs the ``mlx`` extra.
+nn  = ["torch>=2.0", "dnndenoiser @ git+https://github.com/stoyoda0012-cyber/dnndenoiser@v0.1.2"]
+# Compound / binding-energy / cross-section tables (imfp.py, haxpes/cross_section_*)
+# and the Voigt peak-fit bridge (depth_generator.py)
+fit = ["toyomacro @ git+https://github.com/stoyoda0012-cyber/toyomacro@v0.3.1"]
+# Apple-GPU batched solvers (solvers_mlx/)
+mlx = ["mlx"]
+dev = ["pytest>=7.4"]
+all = ["deppro[nn,fit,mlx,dev]"]
+
+# Console scripts: deppro.simulate / deppro.inference already run via `python -m`.
+# [project.scripts]
+# deppro-depth = "deppro.cli_depth:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["deppro*"]
+exclude = [
+    "deppro.experiments*", "deppro.tests*", "deppro.benchmarks*",
+    "deppro._debug*", "deppro.app.tests*", "deppro.app.diagnostics*",
+    "deppro.diagnostics*",
+]
+
+# ★ pytest の設定はここが正本。src/deppro/pytest.ini は 2026-07-29 に削除した
+#   （rootdir を src/deppro に奪って、この節を丸ごと死に設定にしていた＝
+#     app/tests が既定の `pytest` で一度も走っていなかった）。
+[tool.pytest.ini_options]
+testpaths = ["src/deppro/tests", "src/deppro/app/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# _archived/ は凍結置き場。収集しない（緑にする責任を負う対象を明確にする）。
+norecursedirs = ["_archived", "*.egg", ".*", "build", "dist", "__pycache__"]
+addopts = "-v --tb=short -m 'not slow'"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+markers = [
+    "slow: 30 秒以上かかるテスト。既定では除外（走らせるなら -m slow）",
+    "benchmark: 性能回帰テスト",
+]

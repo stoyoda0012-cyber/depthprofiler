@@ -1,0 +1,115 @@
+# ARXPS Depth Profile Analysis Configuration
+# Multi-layer film: C / Al2O3 / TiO2 / SiO2 / Si
+#
+# Usage:
+#   python -m deppro.cli_depth solve --config multilayer.yaml
+
+# Model definition
+model:
+  model_type: multilayer
+
+  # Depth grid
+  depth_start: 0.0
+  depth_end: 100.0
+  depth_step: 1.0
+
+  # Physical parameters
+  photon_energy: 1486.6  # Al Ka
+
+  # Layer structure (initial guess for thickness)
+  # C: 0-5 A, Al2O3: 5-15 A, TiO2: 15-35 A, SiO2: 35-65 A
+  n_layers: 4
+  layer_thicknesses: [5.0, 15.0, 35.0, 65.0]
+
+  # Interface widths (FIXED - ARXPS cannot determine these)
+  interface_widths: [2.0, 3.0, 4.0, 5.0]
+
+  # Element indices (0-indexed)
+  # free: cations that are optimized [C, Al, Ti, Si-ox]
+  # linked: anions determined by stoichiometry [O]
+  # substrate: bulk substrate [Si-bulk]
+  free_indices: [0, 1, 2, 3]
+  linked_indices: [4]
+  substrate_indices: [5]
+
+  # Oxygen stoichiometry coefficients
+  # O = sum(coeff[i] * free[i])
+  # C: 0, Al2O3: 3/2=1.5, TiO2: 2, SiO2: 2
+  oxygen_coefficients: [0.0, 1.5, 2.0, 2.0]
+
+  # Optimization settings
+  optimize_thicknesses: true
+  optimize_widths: false      # IMPORTANT: Keep false for stable results
+
+  # Solver configuration
+  solver_method: SLSQP        # Recommended: SLSQP
+  regularization_method: L2   # L2, L1, MEM, or LLS
+  regularization_alpha: 0.001
+  max_iterations: 100
+  tolerance: 1.0e-8
+
+  # Parameter bounds
+  thickness_bounds: [1.0, 150.0]
+  width_bounds: [0.5, 20.0]
+
+# Element definitions
+elements:
+  - label: C
+    symbol: C
+    orbital: 1s
+    binding_energy: 284.8
+    kinetic_energy: 1201.8
+    oxidation_state: 0
+
+  - label: Al
+    symbol: Al
+    orbital: 2p
+    compound: Al2O3
+    binding_energy: 74.7
+    kinetic_energy: 1411.9
+    oxidation_state: 3
+
+  - label: Ti
+    symbol: Ti
+    orbital: 2p
+    compound: TiO2
+    binding_energy: 458.5
+    kinetic_energy: 1028.1
+    oxidation_state: 4
+
+  - label: Si_ox
+    symbol: Si
+    orbital: 2p
+    compound: SiO2
+    binding_energy: 103.5
+    kinetic_energy: 1383.1
+    oxidation_state: 4
+
+  - label: O
+    symbol: O
+    orbital: 1s
+    binding_energy: 531.0
+    kinetic_energy: 955.6
+    oxidation_state: -2
+
+  - label: Si_bulk
+    symbol: Si
+    orbital: 2p
+    binding_energy: 99.3
+    kinetic_energy: 1387.3
+    oxidation_state: 0
+    is_substrate: true
+
+# Input/Output
+input_file: intensity_data.csv
+output_dir: ./results
+
+# Options
+normalize_input: true
+normalization_mode: angle  # 'angle' or 'element'
+
+# Output formats
+save_profile_json: true
+save_profile_csv: true
+save_plot: true
+verbose: false

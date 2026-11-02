@@ -1,0 +1,122 @@
+# Custom Layer Structure Definition
+# ==================================
+# Edit this file to define your own multi-layer structure.
+#
+# Usage:
+#   import numpy as np
+#   from deppro.layer_model import LayerModel
+#   model = LayerModel.from_yaml('custom_structure.yaml')
+#   depth = np.arange(model.depth_start, model.depth_end + model.depth_step, model.depth_step)
+#   D = model.build_depth_profile(np.array(model.layer_thicknesses),
+#                                 np.array(model.interface_widths), depth)
+
+photon_energy: 1486.6  # Al Ka (eV)
+depth_start: 0.0
+depth_end: 100.0
+depth_step: 1.0
+substrate_element: Si_bulk
+
+# Element definitions
+# --------------------
+# role options:
+#   - free: Freely optimized (cations like Al, Ti, Si in oxides)
+#   - linked: Determined by stoichiometry (usually O)
+#   - substrate: Bulk substrate element
+#
+# oxidation_state: Used for charge balance constraint
+#   Common values: Al=+3, Ti=+4, Si=+4, O=-2
+
+elements:
+  - symbol: C
+    label: C
+    binding_energy: 284.8
+    role: free
+
+  - symbol: Al
+    label: Al_Al2O3
+    binding_energy: 74.7
+    oxidation_state: 3
+    role: free
+    compound: Al2O3
+
+  - symbol: Ti
+    label: Ti_TiO2
+    binding_energy: 458.5
+    oxidation_state: 4
+    role: free
+    compound: TiO2
+
+  - symbol: Si
+    label: Si_SiO2
+    binding_energy: 103.5
+    oxidation_state: 4
+    role: free
+    compound: SiO2
+
+  - symbol: O
+    label: O
+    binding_energy: 531.0
+    oxidation_state: -2
+    role: linked
+
+  - symbol: Si
+    label: Si_bulk
+    binding_energy: 99.3
+    oxidation_state: 0
+    role: substrate
+
+# Layer stack (from surface to bulk)
+# -----------------------------------
+# profile options:
+#   - exponential: Surface contamination (decay_length controls depth)
+#   - erf: Oxide layer with error function interfaces
+#   - substrate: Bulk substrate (rises at last interface)
+#
+# thickness: Layer thickness in Angstroms (initial guess, will be optimized)
+# width: Interface width FWHM in Angstroms (KEEP FIXED for reliable results)
+
+layers:
+  - name: contamination
+    compound: C
+    elements: [C]
+    stoichiometry: [1.0]
+    profile: exponential
+    decay_length: 3.0
+    width: 2.0
+    optimize_thickness: false  # decay_length is not optimized
+
+  - name: Al2O3
+    compound: Al2O3
+    elements: [Al_Al2O3, O]
+    stoichiometry: [2.0, 3.0]
+    profile: erf
+    thickness: 10.0           # Initial guess
+    width: 3.0                # FIXED
+    optimize_thickness: true
+    optimize_width: false     # IMPORTANT: Keep false
+
+  - name: TiO2
+    compound: TiO2
+    elements: [Ti_TiO2, O]
+    stoichiometry: [1.0, 2.0]
+    profile: erf
+    thickness: 20.0
+    width: 4.0
+    optimize_thickness: true
+    optimize_width: false
+
+  - name: SiO2
+    compound: SiO2
+    elements: [Si_SiO2, O]
+    stoichiometry: [1.0, 2.0]
+    profile: erf
+    thickness: 25.0
+    width: 5.0
+    optimize_thickness: true
+    optimize_width: false
+
+  - name: substrate
+    compound: Si
+    elements: [Si_bulk]
+    stoichiometry: [1.0]
+    profile: substrate

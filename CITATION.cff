@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it using the metadata below.
+  A DOI will be added here once the first release is archived on Zenodo.
+type: software
+title: >-
+  deppro: depth-composition reconstruction from angle-resolved X-ray
+  photoelectron spectroscopy
+authors:
+  - family-names: Toyoda
+    given-names: Satoshi
+    orcid: 'https://orcid.org/0009-0007-1091-1579'
+    affiliation: >-
+      Office of Institutional Advancement and Communications,
+      Kyoto University, Kyoto, Japan
+version: 0.1.0
+license: MIT
+repository-code: 'https://github.com/stoyoda0012-cyber/depthprofiler'
+abstract: >-
+  deppro reconstructs depth profiles of composition in thin films from
+  angle-resolved X-ray photoelectron spectroscopy (ARXPS) and hard X-ray
+  photoelectron spectroscopy (HAXPES) intensities. It builds a transfer
+  matrix from inelastic mean free paths and the measurement geometry and
+  inverts it under physical constraints and regularisation, with reference
+  CPU solvers, batched solvers on Apple-silicon GPUs (MLX) and a
+  neural-network inverse solver.
+keywords:
+  - XPS
+  - HAXPES
+  - ARXPS
+  - photoelectron spectroscopy
+  - depth profiling
+  - inverse problem
+  - Apple Silicon
+  - MLX

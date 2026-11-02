@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Outputs of examples and benchmarks (see deppro.paths.outputs_dir()).
+# `outputs` can be a directory or a symlink; a pattern with a trailing slash
+# matches directories only, so both forms are listed.
+outputs
+outputs/
+src/outputs
+src/outputs/
+*.png
+*.jpg
+
+# Large data files and model weights
+*.h5
+*.mat
+*.pt
+
+# Local notes and settings
+*.local.md
+
+# Settings of AI coding assistants: local state is not tracked
+.claude/*
+!.claude/settings.json
+!.claude/commands/
+!.claude/hooks/
+.claude/settings.local.json
+.claude/**/*.local.md
+
+# Archives
+*.tar.gz
+*.gz

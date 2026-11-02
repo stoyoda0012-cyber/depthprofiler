@@ -1,0 +1,88 @@
+# ARXPS Depth Profile Analysis Configuration
+# Simple SiO2/Si two-layer system
+#
+# Usage:
+#   python -m deppro.cli_depth solve --config sio2_si.yaml
+
+# Model definition
+model:
+  model_type: film_structure
+
+  # Depth grid
+  depth_start: 0.0
+  depth_end: 80.0
+  depth_step: 0.5
+
+  # Physical parameters
+  photon_energy: 1486.6  # Al Ka
+
+  # Layer structure
+  n_layers: 1
+  layer_thicknesses: [30.0]      # Initial SiO2 thickness guess
+  interface_widths: [5.0]        # Fixed interface width
+
+  # Element indices
+  free_indices: [0]       # Si-ox (cation)
+  linked_indices: [1]     # O (anion)
+  substrate_indices: [2]  # Si-bulk
+
+  # Oxygen stoichiometry: SiO2 -> O = 2 * Si
+  oxygen_coefficients: [2.0]
+
+  # Optimization
+  optimize_thicknesses: true
+  optimize_widths: false
+
+  # Solver
+  solver_method: SLSQP
+  regularization_method: L2
+  regularization_alpha: 0.001
+  max_iterations: 100
+  tolerance: 1.0e-8
+
+  # Bounds
+  thickness_bounds: [1.0, 100.0]
+  width_bounds: [1.0, 15.0]
+
+  # Constraints (MATLAB-compatible, both enabled by default)
+  use_sum_constraint: true       # Enforce Σconcentration = 1 at each depth
+  use_charge_constraint: true    # Enforce charge neutrality
+
+# Element definitions
+elements:
+  - label: Si_ox
+    symbol: Si
+    orbital: 2p
+    compound: SiO2
+    binding_energy: 103.5
+    kinetic_energy: 1383.1
+    oxidation_state: 4
+
+  - label: O
+    symbol: O
+    orbital: 1s
+    binding_energy: 531.0
+    kinetic_energy: 955.6
+    oxidation_state: -2
+
+  - label: Si_bulk
+    symbol: Si
+    orbital: 2p
+    binding_energy: 99.3
+    kinetic_energy: 1387.3
+    oxidation_state: 0
+    is_substrate: true
+
+# Input/Output
+input_file: sio2_intensity.csv
+output_dir: ./results
+
+# Options
+normalize_input: true
+normalization_mode: angle
+
+# Output
+save_profile_json: true
+save_profile_csv: true
+save_plot: true
+verbose: false

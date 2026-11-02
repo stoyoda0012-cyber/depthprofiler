@@ -1,0 +1,239 @@
+name: CI
+
+# 構成の考え方:
+#   - 回帰スイート（pytest）と受入ゲート（acceptance）を別ジョブに分ける。
+#     回帰スイートの緑は「悪化していない」、受入ゲートの赤は「実装がまだ
+#     主張に届いていない」を意味する。未達のゲートを skip や閾値の緩和で
+#     緑にはしない。
+#   - push / PR では Python 3.12 だけ。3.11（requires-python の下限）は
+#     週 1 の定期実行で拾う。
+#   - 文書だけの変更では回さない（paths-ignore）。
+#   - macOS ランナーが要る MLX のゲートは手動実行（workflow_dispatch）だけ。
+#     macOS ランナーは消費が大きいので、push での常時実行にはしない。
+#   - acceptance は PR と週次では回さない。状態表示であって毎コミットの
+#     判定ではないため。可視化は main への push と手動実行で続く。
+#   - 分数の見積り（ubuntu、1 回あたり）: PR ≈ 7-9 分、main への push ≈ 11-14 分、
+#     週次 ≈ 15-20 分（toyomacro main の先行検査 ≈ 6 分を含む）。ジョブやトリガを足すときは、この見積りも更新する。
+#
+#   toyomacro（化合物・結合エネルギー・断面積の表の既定の供給元）は、
+#   test / acceptance / acceptance-mlx の 3 ジョブで extra `fit` から入れる。
+#   extra は pyproject.toml で git tag を固定しているので、CI と利用者が
+#   同じ版を使う。週次と手動のときだけ、toyomacro-main ジョブが main を
+#   入れて回帰スイートを走らせる（先行検査）。hygiene だけは入れない — 「extra 無しでも import できる」
+#   ことの実証を兼ねているため。
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'paper/**', 'archive/**']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'paper/**', 'archive/**']
+  schedule:
+    # 週 1 の regression 監視: 3.11/3.12 の回帰スイート + toyomacro main での回帰スイート + hygiene
+    # （日曜 03:00 UTC）。acceptance は走らせない — 既知の未達＝赤で
+    # 毎週の failure 通知になるだけで、状態は main push / 手動で更新される。
+    - cron: '0 3 * * 0'
+  # 手動実行では全ジョブが走る（toyomacro-main と、macOS の acceptance-mlx を含む）。
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 通常は 3.12 のみ。schedule のときだけ 3.11 を足す。
+        python-version: ${{ github.event_name == 'schedule' && fromJSON('["3.11","3.12"]') || fromJSON('["3.12"]') }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # nn / mlx の extra は入れない:
+      #   nn  = torch + dnndenoiser … Linux の CPU 回帰スイートでは使わない
+      #   mlx = Apple GPU 専用      … Linux ランナーには載らない
+      # これらに依存するテストは pytest.importorskip で skip される。
+      #
+      # fit = toyomacro は **入れる**。入れないと deppro/app/tests/ が
+      # 丸ごと収集されず、それを skip して緑にするのは「検査しなかったから
+      # 緑」でしかない。版は pyproject.toml の extra が固定している。
+      #
+      # deppro/__init__.py は toyomacro 無しでも import できなければならない
+      # （test_import_without_fit_extra.py が縛り、hygiene ジョブが
+      # toyomacro 無しで走らせて実証する）。
+      - name: Install (core + dev + fit)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,fit]' pytest-timeout
+
+      - name: Show what will run
+        run: pytest --collect-only -q | tail -3
+
+      # 既定の addopts が -m 'not slow' を効かせる（遅いベンチは除外）。--timeout は暴走の保険。
+      #
+      # ★ acceptance ジョブへ切り出したゲートを deselect している。
+      #   これは「無かったことにする」のではなく **担当ジョブを分ける** ため:
+      #   このジョブの緑は「ゲートを除いて回帰なし」を意味し、ゲート自体は
+      #   acceptance / acceptance-mlx が受け持つ（未達なら赤のまま）。
+      #   xfail は使わない — 「悪化しないこと」を主張するゲートに
+      #   「悪化するのが期待動作」と書くことになり、主張が反転するため。
+      - name: pytest (回帰スイート)
+        env:
+          MPLBACKEND: Agg
+        run: |
+          pytest --timeout=600 -rf \
+            --deselect 'src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_improves_poisson' \
+            --deselect 'src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_similar_for_gaussian' \
+            --deselect 'src/deppro/tests/solver/test_mlx_semifree_batch.py::test_one_sided_objective_and_thickness'
+
+  toyomacro-main:
+    # toyomacro の main で回帰スイートを走らせる先行検査。ほかのジョブは
+    # extra `fit` の固定版を使うので、toyomacro 側の変更で壊れても、版を
+    # 上げるまで気づけない。それを週 1 回拾う。
+    # 赤になったら toyomacro 側の変更を調べる。固定版を上げる判断は別。
+    name: pytest against toyomacro main (weekly)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (core + dev + toyomacro main)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]' pytest-timeout \
+            'toyomacro @ git+https://github.com/stoyoda0012-cyber/toyomacro@main'
+      - name: pytest (回帰スイート、toyomacro main)
+        env:
+          MPLBACKEND: Agg
+        run: |
+          pytest --timeout=600 -rf \
+            --deselect 'src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_improves_poisson' \
+            --deselect 'src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_similar_for_gaussian' \
+            --deselect 'src/deppro/tests/solver/test_mlx_semifree_batch.py::test_one_sided_objective_and_thickness'
+
+  # ======================================================================
+  # 受入ゲート — 通れば実装が主張に追いついた合図。
+  # 未達なら **赤のまま可視** にしておくのが正しい状態:
+  #   anscombe (Poisson)  Poisson ノイズで、Anscombe 変換つきの解の誤差が
+  #                       OLS の 1.2 倍を超えないこと
+  #   anscombe (Gauss)    ガウスノイズで、Anscombe 変換つきと OLS の差が小さいこと
+  #   mlx (別ジョブ)      MLX バッチ解の膜厚が参照解に近く（差の中央値 1 Å 以下）、
+  #                       膜厚が 1 Å を超えてずれた画素では目的関数を悪化させないこと
+  #
+  # anscombe×2 はプラットフォームで判定が分かれることが分かっている
+  # （Linux の CI では通り、macOS では通らない）。どちらを採るかは決めておらず、
+  # ゲートも閾値も変えていない。
+  #
+  # 狭角の膜厚ゲート（test_narrow_angle_semifree）は、主張に追いついた
+  # （macOS でも Linux でも通る）ので受入ゲートから回帰スイートへ戻した。
+  # ======================================================================
+  acceptance:
+    name: acceptance gates (未達＝赤が正しい)
+    runs-on: ubuntu-latest
+    # PR ごとにも週次 schedule でも回さない。ここの 2 本は「実装が主張に
+    # 届いていない」ことを示す状態表示であって、コミット単位でもカレンダー
+    # 単位でも変わる性質のものではない。週次は regression 監視に限定し、
+    # 既知の未達 acceptance で毎週 failure 通知を出さない。
+    # 現状の更新（＝赤の可視化）は main への push と手動実行で続く。
+    # 閾値・テストは不変（緑化ではなくジョブ分離）。
+    if: github.event_name != 'pull_request' && github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,fit]' pytest-timeout
+
+      # deselect リストの腐り検知: 対象がリネーム・削除されると
+      # pytest は黙って 0 件収集するので、本数を明示的に確かめる。
+      - name: ゲートが 2 本収集できること
+        run: |
+          # -o addopts="" は既定の -v を打ち消すため（-v だとツリー表示になって
+          # ノードIDの行数が数えられない）
+          n=$(pytest --collect-only -q -o addopts="" \
+                src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_improves_poisson \
+                src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_similar_for_gaussian \
+              | grep -c '::')
+          echo "collected: $n"
+          test "$n" -eq 2
+
+      - name: 受入ゲート
+        env:
+          MPLBACKEND: Agg
+        run: |
+          pytest --timeout=600 -rf \
+            src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_improves_poisson \
+            src/deppro/tests/benchmark/noise/test_wls_poisson.py::test_anscombe_similar_for_gaussian
+
+  acceptance-mlx:
+    # MLX は Apple GPU 専用。ubuntu では importorskip で skip され、
+    # 「skip 込みの緑」になってゲートが機能しない → macOS ランナーで走らせ、
+    # mlx が入らなかった場合は skip でなく **ジョブ失敗** にする。
+    #
+    # push では回さない（macOS ランナーは消費が大きいため）:
+    #     - 普段は Apple Silicon の手元で直接:
+    #         pytest 'src/deppro/tests/solver/test_mlx_semifree_batch.py::test_one_sided_objective_and_thickness'
+    #     - CI で確認したいときだけ Actions から手動実行（workflow_dispatch）
+    if: github.event_name == 'workflow_dispatch'
+    name: acceptance gate — MLX criterion 6 (手動実行のみ / 未達＝赤が正しい)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,fit,mlx]' pytest-timeout
+      - name: mlx が実際に import できること（skip での空振りを防ぐ）
+        run: python -c "import mlx.core as mx; print('mlx OK', mx.__file__)"
+      - name: criterion 6 — dthk>1Å の画素で f を悪化させないこと
+        env:
+          MPLBACKEND: Agg
+        run: |
+          pytest --timeout=600 -rf \
+            'src/deppro/tests/solver/test_mlx_semifree_batch.py::test_one_sided_objective_and_thickness'
+
+  hygiene:
+    name: repo hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      # 検査自体は AST 走査だが、pytest が conftest を **パッケージとして**
+      # 読み込む（src/deppro/tests/ は deppro のサブパッケージ）ため、
+      # conftest の import が deppro/__init__.py を、ひいては core 依存
+      # (scipy 等) を引き込む。pytest + numpy だけでは収集の段で落ちるので、
+      # 本体を入れる。
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      # 「test_ を名乗るならテストを持つ」が破られた瞬間に落ちる。
+      #
+      # このジョブは **toyomacro を入れない唯一のジョブ**なので、
+      # 「任意 extra `fit` 無しでも deppro が import できる」ことの実証も
+      # ここで兼ねる（test 側は fit を入れて走るため、そこでは示せない）。
+      - run: |
+          pytest -v -p no:cacheprovider \
+            src/deppro/tests/unit/test_repo_hygiene.py \
+            src/deppro/tests/unit/test_import_without_fit_extra.py

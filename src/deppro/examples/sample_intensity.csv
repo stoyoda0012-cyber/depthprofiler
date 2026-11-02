@@ -1,0 +1,14 @@
+# Synthetic angle-resolved XPS intensities (noise-free forward calculation, not a measurement).
+# Regenerate with: python -m deppro.examples.make_sample_intensity
+# Profile: deppro.create_five_layer_profile() defaults (C / Al2O3 / TiO2 / SiO2 / Si, 0-100 A, 1 A steps).
+# Photon energy 1486.6 eV, work function 4.5 eV, no noise, intensities normalised to 1 per angle.
+# Tables: compounds: toyomacro 0.3.1 bundled table; binding energies: toyomacro 0.3.1 bundled table.
+# Columns: angle (degrees), then one column per element; the KE row gives kinetic energies (eV).
+angle,C1s,O1s,Al2p,Ti2p,Si2p
+KE,1198.1,951.1,1409.1,1028.1,1383.1
+0.0,0.129203,0.438924,0.121101,0.091158,0.219615
+30.0,0.146052,0.440975,0.133327,0.091539,0.188107
+45.0,0.174610,0.439425,0.152523,0.089972,0.143470
+55.0,0.210238,0.430681,0.173731,0.084920,0.100430
+65.0,0.272688,0.403028,0.203199,0.070567,0.050518
+75.0,0.392454,0.329038,0.230364,0.037778,0.010366
