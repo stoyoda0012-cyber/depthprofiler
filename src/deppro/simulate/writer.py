@@ -216,6 +216,18 @@ class ParquetWriter:
 # HDF5 Writer (MATLAB Compatible)
 # =============================================================================
 
+def _element_label(symbol: str, charge: float) -> str:
+    """MATLAB ``ezdeprof/element`` label: ``('Si', 4) -> 'Si(+4)'``.
+
+    Same convention as ``deppro.io.h5_writer.format_element_with_charge``
+    (``+4`` / ``-2`` / ``0``); kept local so this module does not depend on
+    the legacy io writer.
+    """
+    c = int(charge)
+    sign = "+" if c > 0 else ""
+    return f"{symbol}({sign}{c})"
+
+
 class H5Writer:
     """HDF5 writer compatible with MATLAB DepthProfiler GUI.
 
@@ -226,6 +238,14 @@ class H5Writer:
         Dstk: (n_pixels, n_elements, n_depth) float32
         Xstk: (n_pixels, n_elements, n_angles) float32
         TransMatObs: (n_elements, n_depth, n_angles) float64
+
+    Besides the element tables (``elementsymbol`` / ``orbital`` /
+    ``compound``), ``finalize`` writes the two datasets that
+    ``deppro.visualize_4d.load_gt_4d`` reads without an existence check:
+    ``ezdeprof/element`` (charge-labelled names, ``'Si(+4)'``) and
+    ``ezdeprof/dxdydt`` (``[[nx, ny, nt]]``, shape (1, 3) float64, the
+    layout of ``deppro.app.depth_result_writer``). Samples that are not on
+    a spatial grid are recorded as one row, ``[[n_pixels, 1, 1]]``.
 
     Parameters
     ----------
@@ -267,6 +287,8 @@ class H5Writer:
         work_function: float = 4.5,
         gamma_eff: float = 1.0,
         trans_mat: Optional[np.ndarray] = None,
+        nx: Optional[int] = None,
+        ny: Optional[int] = None,
     ) -> str:
         """Write accumulated data to H5 file.
 
@@ -283,6 +305,12 @@ class H5Writer:
         trans_mat : ndarray, optional
             Transfer matrix [n_angles, n_depth, n_elements].
             If provided, saved as /ezdeprof/TransMatObs in MATLAB layout.
+        nx, ny : int, optional
+            Spatial grid of the accumulated samples, written to
+            ``ezdeprof/dxdydt`` as ``[[nx, ny, nt]]`` with
+            ``nt = n_pixels // (nx * ny)``. Both or neither: with neither,
+            the samples are recorded as one row (``nx = n_pixels``,
+            ``ny = 1``). ``n_pixels`` must be a multiple of ``nx * ny``.
 
         Returns
         -------
@@ -293,6 +321,19 @@ class H5Writer:
         Dstk = np.concatenate(self._D_batches, axis=0)   # (N, n_depth, n_elem)
         Xstk = np.concatenate(self._X_batches, axis=0)   # (N, n_angles, n_elem)
         n_pixels = Dstk.shape[0]
+
+        # Spatial grid -> dxdydt. Resolved before anything is written so a
+        # bad grid leaves no partial file behind.
+        if (nx is None) != (ny is None):
+            raise ValueError("nx and ny must be given together (or neither)")
+        if nx is None:
+            nx, ny = n_pixels, 1
+        nx, ny = int(nx), int(ny)
+        if nx < 1 or ny < 1 or n_pixels % (nx * ny) != 0:
+            raise ValueError(
+                f"n_pixels={n_pixels} is not a multiple of nx*ny={nx}*{ny}"
+            )
+        nt = n_pixels // (nx * ny)
 
         # Transpose to MATLAB layout: (pixels, elements, depth/angles)
         Dstk_ml = np.transpose(Dstk, (0, 2, 1)).astype(np.float32)
@@ -331,6 +372,14 @@ class H5Writer:
             ez.create_dataset('elementsymbol', data=np.array(symbols, dtype='S10'))
             ez.create_dataset('orbital', data=np.array(orbitals, dtype='S10'))
             ez.create_dataset('compound', data=np.array(compounds, dtype='S20'))
+
+            # Charge-labelled element names ('Si(+4)'): what the loaders key
+            # colours and element order on (ezdeprof/element, MATLAB).
+            labels = [_element_label(sym, c) for sym, c in zip(symbols, preset.charges)]
+            ez.create_dataset('element', data=labels, dtype=dt_str)
+
+            # Spatial grid: (1, 3) float64 like app/depth_result_writer.
+            ez.create_dataset('dxdydt', data=np.array([[nx, ny, nt]], dtype=np.float64))
 
             # Charges and linkedconst
             ez.create_dataset('charge', data=np.array(

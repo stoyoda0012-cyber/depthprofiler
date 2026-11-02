@@ -23,7 +23,7 @@ group 配置・grid の記録場所・`dxdydt` の有無と意味がそれぞれ
 |---|---|---|---|---|---|---|
 | **D1** benchmark simple | `benchmarks/generate_checkered.py::save_to_h5` | `Dstk`, `Xstk`, `Drlt` | `depth` (1,-1), `thetaobs`, `stepsize`, `gammaeff`, `photonenergy`, `workfunction`, `charge`, `free`/`subst`/`linked`/`linkedconst`, `TransMatObs`, `totaldepth`, `m`, `noise` | 書く `[n_pixels]` | **書かない** | `ez.attrs["nx"]`, `ez.attrs["ny"]` |
 | **D2** MATLAB 互換フル | `benchmarks/generate_checkered.py::save_to_matlab_h5` | `Dstk`, `Drlt`, `Dtrn`, `Xstk`, `Xrlt`, ほか | D1 系に加え MATLAB GUI 由来の制御・品質メタ（`loop`, `currentloop`, `currentstack`, `Qini`, `Qopt`, 各種 `*value` フラグ, `prpties` 等） | 書く `[n_pixels]` uint64 | **書く** `[[nx],[ny],[1]]` shape (3,1) uint16 | `dxdydt[0:2]`（＝`config.nx`, `config.ny`）と `ez.attrs["nx"/"ny"]` の両方 |
-| **D3** simulate writer | `simulate/writer.py` | `Dstk`, `Xstk`（gzip） | `depth` (-1,1), `thetaobs`, `stepsize` (1,1), `gammaeff`, `photonenergy`, `workfunction`, `elementsymbol`/`orbital`/`compound`, `charge`, `linkedconst`, `free`/`subst`/`linked`, `TransMatObs`, `loop`, `currentloop`, `BindingEnergy` | 書く `[[n_pixels]]` f64 | **書かない** | **記録なし** |
+| **D3** simulate writer | `simulate/writer.py` | `Dstk`, `Xstk`（gzip） | `depth` (-1,1), `thetaobs`, `stepsize` (1,1), `gammaeff`, `photonenergy`, `workfunction`, `elementsymbol`/`orbital`/`compound`, **`element`**（電荷付きラベル `Si(+4)`）, `charge`, `linkedconst`, `free`/`subst`/`linked`, `TransMatObs`, `loop`, `currentloop`, `BindingEnergy` | 書く `[[n_pixels]]` f64 | **書く** `[[nx, ny, nt]]` shape (1,3) f64（D4 と同じ layout）。`finalize(nx=, ny=)` 未指定なら `[[n_pixels, 1, 1]]` | `dxdydt[0:2]`（`finalize` の `nx`/`ny`。`n_pixels` が `nx*ny` の倍数でなければ書く前に `ValueError`） |
 | **D4** app result | `app/depth_result_writer.py` | **`/D_est`** group (`data`, `solver`, `timestamp`), **`/Xstk`**。**`Dstk` は無い** | `depth` (-1,1), `stepsize` (1,1), `element`, `dxdydt`, `thetaobs`（任意）, `TransMatObs`（任意） | **書かない** | **書く** `[[n_x, n_y, n_t]]` shape (1,3) f64。`n_t = n_px // (n_x*n_y)` | `dxdydt` が表示 grid そのもの |
 | **D5** legacy io writer | `io/h5_writer.py` | MATLAB 準拠の多数 | `SimulationOrExperiment`, `depth`, `totaldepth`, `stepsize`, `m`, `slice`, `thetaobs`, `thetaopt`, `angle`, `elementsymbol`, `orbital`, `compound`, `bindingenergy`, `elementnumber`, `orbitalnumber`, `charge`, `stringcharge`, `element`, `subst`/`free`/`linked` ほか | 書く（`1` または `n_stack`） | **書く**（`[1, 1, 100]` を固定値で。参照ファイルに合わせた **legacy metadata**） | `dxdydt` からは決まらない |
 | *(後処理)* metric writer | `benchmark_h5_writer.py` | 既存ファイルを読み書き | `Dopt` 等を**追記** | — | — | — |
@@ -46,7 +46,8 @@ group 配置・grid の記録場所・`dxdydt` の有無と意味がそれぞれ
 |---|---|
 | **D5** | **現行 loader の想定に最も近い**（`Dstk` と `dxdydt` の両方がある） |
 | **D2** | `Dstk` と `dxdydt` の両方があり、`dxdydt[0:2]` が実際の grid と一致する |
-| **D1 / D3** | `dxdydt` が無いため `KeyError`。両者が持つ grid 情報（D1 の attrs、D3 は情報なし）は loader に使われない |
+| **D3** | `Dstk`、`element`、`dxdydt` がそろい、`dxdydt[0:2]` が `finalize` に渡した grid（既定は 1 行 `n_pixels × 1`）と一致する |
+| **D1** | `dxdydt` が無いため `KeyError`。持っている grid 情報（`ez.attrs`）は loader に使われない |
 | **D4** | トップレベル `Dstk` が無いため**現行 loader では読めない**（`dxdydt` は持っている） |
 
 この非対応は既知であり、この文書は現状を記述するもので、loader の修正を意味しない。
