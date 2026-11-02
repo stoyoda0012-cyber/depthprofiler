@@ -8,10 +8,12 @@ citable DOI. Until 1.0 the API may change between minor versions.
 
 ## [Unreleased]
 
-First public release, to be tagged `v0.1.0`. Development before this
-release took place in a private repository; the public history starts with
-a single commit that imports the files selected for publication, and the
-earlier history is not part of this repository.
+## [0.1.0] - 2026-11-02
+
+First public release. Development before this release took place in a
+private repository; the public history starts with a single commit that
+imports the files selected for publication, and the earlier history is not
+part of this repository.
 
 ### Added
 
