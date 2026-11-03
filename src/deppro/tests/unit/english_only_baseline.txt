@@ -1,10 +1,7 @@
 # English-only ratchet: public files that still contain Japanese text.
 # One repo-relative path per line. Translate a file, then delete its line in the
 # same commit. Never add a line: new code and documents are written in English.
-# (Checked by src/deppro/tests/unit/test_repo_hygiene.py; the count is informative.)
-
-src/deppro/inverse_solver.py    # 129 lines
-src/deppro/io/example_create_hxps_h5.py    # 92 lines
-src/deppro/pipeline.py    # 99 lines
-src/deppro/producer/dataset.py    # 83 lines
-src/deppro/producer/gui_export.py    # 112 lines
+# (Checked by src/deppro/tests/unit/test_repo_hygiene.py.)
+#
+# The list is empty: every shipped module and public document is English, and
+# the hygiene test now fails on any Japanese text in them.
