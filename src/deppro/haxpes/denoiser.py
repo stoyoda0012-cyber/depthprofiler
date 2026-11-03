@@ -21,7 +21,7 @@ entry is added. Importing this module does not import torch or dnndenoiser;
 constructing :class:`HaxpesDenoiser` does, and fails with an ``ImportError``
 that names the missing package.
 
-Per-element weights ``model_<Elem>_fold<n>.pt`` and their normalisation
+Per-element weights ``model_<Elem>_fold<n>.pt`` and their normalization
 ``norm_<Elem>.json`` (``global_min`` / ``global_max`` of the training stack)
 are not part of this repository.
 
@@ -221,7 +221,7 @@ class HaxpesDenoiser:
     ) -> Dict[str, np.ndarray]:
         """Denoise all spectra in a pixel.
 
-        An element whose model or normalisation file is missing is passed
+        An element whose model or normalization file is missing is passed
         through **unchanged** (and a warning is logged), so the returned dict
         is not guaranteed to be denoised in every element. Callers that need
         the guarantee should call :meth:`denoise_spectrum` per element.

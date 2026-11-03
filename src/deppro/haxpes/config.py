@@ -11,7 +11,7 @@ Three-level configuration:
     HAXPESSolverConfig: Tunable analysis parameters
 
 Pre-built instances:
-    FIX_IBW_INSTRUMENT, FIX_PXT_INSTRUMENT: Scienta Omicron Angular56 analyser, fix mode,
+    FIX_IBW_INSTRUMENT, FIX_PXT_INSTRUMENT: Scienta Omicron Angular56 analyzer, fix mode,
         IBW export (1001 detector channels) and pre-binned PXT export (12 angle channels)
     CALTIOSI_EXPERIMENT: C/Al₂O₃/TiO₂/Si multilayer sample
 """
@@ -32,8 +32,8 @@ from deppro.paths import env_path_or_placeholder
 
 #: The polar angle from the analyzer's central (lens) axis, detector angle
 #: ang = 0, to the sample normal. Emission angle = ang + this value. The sample
-#: is rotated about the polar axis only. It is NOT the centre of the retained
-#: bins: the retained window (996 of 1001 channels) is off-centre by 0.184 deg.
+#: is rotated about the polar axis only. It is NOT the center of the retained
+#: bins: the retained window (996 of 1001 channels) is off-center by 0.184 deg.
 #: Its value is 30 deg. Earlier analyses and their deposited arrays and figures
 #: were made with 26.0 and carry 26-based angle labels (see
 #: docs/REPRODUCTION_JVST_SIA.md). The formula

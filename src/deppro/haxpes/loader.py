@@ -165,7 +165,7 @@ def load_prebinned_pxt(
     file_filter : str
         Filter string for PXT filenames (default: 'Narrow').
     polar_offset : float
-        Polar angle from the analyser's lens axis to the sample normal
+        Polar angle from the analyzer's lens axis to the sample normal
         (degrees); emission angle = detector angle + polar_offset.
     tilt : float, optional
         Deprecated name of ``polar_offset``.
@@ -366,7 +366,7 @@ def sum_and_bin(
     angle_lo, angle_hi : float
         Angle range for binning.
     polar_offset : float
-        Polar angle from the analyser's lens axis to the sample normal
+        Polar angle from the analyzer's lens axis to the sample normal
         (degrees); emission angle = detector angle + polar_offset.
     n_detector : int
         Number of detector channels.

@@ -429,7 +429,7 @@ class StreamingDepthPipeline:
     ):
         """Phase 1 (NN mode): Batch neural network inference for all pixels.
 
-        Replaces the per-pixel SLSQP optimisation of Phase 1 with batched
+        Replaces the per-pixel SLSQP optimization of Phase 1 with batched
         MLX NN inference.
 
         NN predicts D(z) directly from normalized I_obs.

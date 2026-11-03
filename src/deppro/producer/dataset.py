@@ -489,9 +489,9 @@ def _dataset_roles(cfg: ProducerConfig) -> List[Dict[str, str]]:
     ]
     if cfg.export_profile == "gui":
         rows += [
-            {"name": "Drlt", "role": "result slot; initialised to Dini replicated, NOT ground truth"},
-            {"name": "Dtrn", "role": "training slot; initialised to Dini replicated, NOT ground truth"},
-            {"name": "Xrlt", "role": "result slot; initialised to Xini replicated"},
+            {"name": "Drlt", "role": "result slot; initialized to Dini replicated, NOT ground truth"},
+            {"name": "Dtrn", "role": "training slot; initialized to Dini replicated, NOT ground truth"},
+            {"name": "Xrlt", "role": "result slot; initialized to Xini replicated"},
             {"name": "FV0stk", "role": "FeatureVector_Source per sample (generation input)"},
             {"name": "FVstk", "role": "FeatureVector_Set per sample, measured back from Dstk"},
             {"name": "SVstk", "role": "SupportVector per sample, measured back from Dstk"},
@@ -521,7 +521,7 @@ def _pre_analysis_record(cfg, gui, state) -> Optional[Dict[str, Any]]:
         },
         "sparsityThreshold": SPARSITY_THRESHOLD,
         "objectiveMinVal": OBJECTIVE_MIN_VAL,
-        "computedOnce": "built inside generate(); the writer only serialises it. "
+        "computedOnce": "built inside generate(); the writer only serializes it. "
                         "No initial-state quantity is recomputed at export time.",
         "supportVectorSetWritten": {
             "values": cfg_sv.tolist(),

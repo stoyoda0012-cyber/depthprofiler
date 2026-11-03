@@ -47,7 +47,7 @@ def cross_section_dir() -> Optional[Path]:
     """Directory holding the Scofield and Yeh–Lindau workbooks, or ``None``.
 
     ``DEPPRO_CROSS_SECTION_DIR`` if set (``~`` is expanded); an empty value
-    counts as unset. There is no default directory: no neighbouring checkout
+    counts as unset. There is no default directory: no neighboring checkout
     is searched, so a source checkout, an installed package and CI resolve the
     same way. Resolved when called, not when imported.
     """
@@ -89,7 +89,7 @@ def resolve_source(db_path: Optional[Path] = None) -> Tuple[str, Optional[Path]]
     2. ``DEPPRO_CROSS_SECTION_DIR`` set -> the workbooks there;
     3. toyomacro installed -> its bundled Scofield and Yeh-Lindau tables;
     4. otherwise ``FileNotFoundError`` naming ``DEPPRO_CROSS_SECTION_DIR`` and
-       toyomacro. No neighbouring checkout is searched.
+       toyomacro. No neighboring checkout is searched.
 
     Only the *source* differs between 2 and 3: deppro keeps its own
     interpolation. ``tests/unit/test_cross_section_sources.py`` pins the

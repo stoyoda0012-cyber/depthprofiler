@@ -3916,7 +3916,7 @@ class SemiFreeSolver:
                     # that satisfies the equality constraints only to ~1e-7. A
                     # short SLSQP restart from there is meant to converge and
                     # satisfy the constraints. The status-8/4 and condition routes
-                    # keep their previous behaviour.
+                    # keep their previous behavior.
                     if _no_progress:
                         result_pl = minimize(
                             objective,

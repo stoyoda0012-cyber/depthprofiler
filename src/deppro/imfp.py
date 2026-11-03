@@ -632,7 +632,7 @@ class CompoundBindingEnergyDatabase:
     def _get_default_csv_path() -> Path:
         """``DEPPRO_COMPOUND_BE_TABLE_PATH``; there is no default table.
 
-        No neighbouring checkout is searched and no package bundles this table,
+        No neighboring checkout is searched and no package bundles this table,
         so without the variable (or an explicit ``csv_path=``) construction
         raises ``FileNotFoundError`` naming the variable.
         """

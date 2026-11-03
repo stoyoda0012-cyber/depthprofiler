@@ -13,7 +13,7 @@ import numpy as np
 
 from deppro.app.depth_result import DepthResult
 
-# Okabe-Ito palette (the same colours as the archived GUI's profile chart)
+# Okabe-Ito palette (the same colors as the archived GUI's profile chart)
 _OKABE_ITO = {
     "Al": "#56B4E9",
     "B": "#E69F00",

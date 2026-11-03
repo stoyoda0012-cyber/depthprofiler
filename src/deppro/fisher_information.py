@@ -75,7 +75,7 @@ class FisherInformation:
 
     Works with the SemiFreeSolver parameter space (x-vector):
         x = [film_conc.ravel(), thickness, abruptness, sub_ratios]
-    and computes the Jacobian of the *normalised* forward model X_norm(θ,e)
+    and computes the Jacobian of the *normalized* forward model X_norm(θ,e)
     with respect to x.
     """
 
@@ -113,9 +113,9 @@ class FisherInformation:
         self.n_sub = len(self._solver.sub_idx)
         self.n_linked = len(self._solver.linked_idx)
 
-        # Number of observations = n_angles × n_elements (normalised intensities)
+        # Number of observations = n_angles × n_elements (normalized intensities)
         # We exclude substrate elements from the chi² (antisubst), but include
-        # them in the Jacobian since they contribute through normalisation.
+        # them in the Jacobian since they contribute through normalization.
         # For CRLB we use the full observation vector.
         self.n_obs = self.n_angles * self.n_elements
 
@@ -202,7 +202,7 @@ class FisherInformation:
         return x
 
     def _forward_normalised(self, x: np.ndarray) -> np.ndarray:
-        """Compute normalised forward model X_norm(θ,e) from parameter vector x.
+        """Compute normalized forward model X_norm(θ,e) from parameter vector x.
 
         Returns shape (n_angles, n_elements).
         """
@@ -215,7 +215,7 @@ class FisherInformation:
         for e in range(self.n_elements):
             I_pred[:, e] = self.tm.trans_mat[:, :, e] @ D[:, e]
 
-        # Substrate-based normalisation
+        # Substrate-based normalization
         if solver.sub_idx:
             I_sub_sum = I_pred[:, solver.sub_idx].sum(axis=1)
             I_sub_sum = np.maximum(I_sub_sum, 1e-30)
@@ -232,7 +232,7 @@ class FisherInformation:
         x: np.ndarray,
         eps: float = 1e-7,
     ) -> np.ndarray:
-        """Compute Jacobian of normalised forward model by finite differences.
+        """Compute Jacobian of normalized forward model by finite differences.
 
         J[k, j] = ∂X_norm_k / ∂x_j
 
@@ -270,7 +270,7 @@ class FisherInformation:
         F = J^T · W · J
 
         where W = diag(1/σ²) depends on the noise model:
-        - 'poisson': σ² = X_norm / n_counts  (variance of normalised intensity)
+        - 'poisson': σ² = X_norm / n_counts  (variance of normalized intensity)
         - 'gaussian': σ² = σ_fixed²  (uniform noise)
 
         Parameters

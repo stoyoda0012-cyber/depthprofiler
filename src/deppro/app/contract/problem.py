@@ -26,7 +26,7 @@ from .dataset_files import (
 
 ROLES_ASSUMED = {
     "Dstk": "ground truth D(z) (assumed from name; producer declaration pending)",
-    "Xstk": "observed X(theta), total-normalised per angle (assumed)",
+    "Xstk": "observed X(theta), total-normalized per angle (assumed)",
     "Drlt": "existing reconstruction written by a previous run (assumed)",
     "ezdeprof/TransMatObs": "transfer matrix of pixel 0 (Xobs/Dobs identity); "
                             "not the full generator forward",
@@ -177,7 +177,7 @@ class ProblemSpec:
 class GroundTruth:
     """Received only by the evaluator. Not passed to solvers or routers."""
     pixel_ids: np.ndarray
-    D: np.ndarray                    # (n_px, n_depth, n_elem), as stored (not renormalised)
+    D: np.ndarray                    # (n_px, n_depth, n_elem), as stored (not renormalized)
     source: str = "Dstk (assumed GT; producer declaration pending)"
 
 

@@ -11,7 +11,7 @@ package depends only on numpy, h5py and ``deppro.imfp`` / ``deppro.transfer_matr
 which import cleanly on their own.
 
 The MATLAB producer stays the reference. This one is compared against it stage by
-stage (materials -> lambda_basic -> GT -> unnormalised I -> normalised X), and
+stage (materials -> lambda_basic -> GT -> unnormalized I -> normalized X), and
 each stage reports its own agreement rather than one end-to-end number.
 """
 

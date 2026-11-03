@@ -11,7 +11,7 @@ Lab frame
 An electron accepted at detector angle ``beta`` (along ``x``) and at angle
 ``gamma`` across the slit travels along
 ``k = (sin(beta) cos(gamma), sin(gamma), cos(beta) cos(gamma))``.
-This parametrisation is a modelling choice: ``beta`` is the angle projected into
+This parametrization is a modeling choice: ``beta`` is the angle projected into
 the dispersion plane (``k_x / k_z = tan(beta)``). The alternative
 ``(sin(beta), cos(beta) sin(gamma), cos(beta) cos(gamma))`` differs at second
 order in the small angles: ``O(beta gamma^2)`` in ``k_x`` and ``O(beta^2 gamma)``
