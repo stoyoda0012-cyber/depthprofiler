@@ -44,14 +44,14 @@ def _check_composition_sum(result: DepthResult) -> PhysicsCheck:
     worst_depth = float(result.depth_axis[worst_idx])
 
     return PhysicsCheck(
-        name="組成整合",
+        name="composition sum",
         passed=max_dev < threshold,
         value=max_dev * 100,
         threshold=threshold * 100,
-        message=f"最大偏差 {max_dev * 100:.1f}%",
+        message=f"max deviation {max_dev * 100:.1f}%",
         detail=(
-            f"平均偏差 {mean_dev * 100:.1f}%, "
-            f"最大偏差 {max_dev * 100:.1f}% at depth {worst_depth:.0f} Å"
+            f"mean deviation {mean_dev * 100:.1f}%, "
+            f"max deviation {max_dev * 100:.1f}% at depth {worst_depth:.0f} Å"
         ),
     )
 
@@ -73,12 +73,12 @@ def _check_non_negativity(result: DepthResult) -> PhysicsCheck:
                 )
 
     return PhysicsCheck(
-        name="非負性",
+        name="non-negativity",
         passed=min_val >= threshold,
         value=min_val,
         threshold=threshold,
-        message=f"最小値 {min_val:.4f}",
-        detail="; ".join(detail_parts) if detail_parts else "全値非負",
+        message=f"minimum {min_val:.4f}",
+        detail="; ".join(detail_parts) if detail_parts else "all values non-negative",
     )
 
 
@@ -92,12 +92,12 @@ def _check_substrate_convergence(result: DepthResult) -> PhysicsCheck:
 
     if substrate_el not in result.elements:
         return PhysicsCheck(
-            name="基板収束",
+            name="substrate convergence",
             passed=True,
             value=0.0,
             threshold=0.0,
             message=f"{substrate_el} not in elements (skip)",
-            detail=f"元素 {substrate_el} はプロファイルに含まれていません",
+            detail=f"element {substrate_el} is not in the profile",
         )
 
     idx = result.elements.index(substrate_el)
@@ -106,14 +106,14 @@ def _check_substrate_convergence(result: DepthResult) -> PhysicsCheck:
     threshold = 0.8
 
     return PhysicsCheck(
-        name="基板収束",
+        name="substrate convergence",
         passed=bottom_conc > threshold,
         value=bottom_conc,
         threshold=threshold,
-        message=f"{substrate_el} 最深部 {bottom_conc * 100:.0f}%",
+        message=f"{substrate_el} at the bottom {bottom_conc * 100:.0f}%",
         detail=(
-            f"{substrate_el} 濃度 (底部{n_bottom}点平均): "
-            f"{bottom_conc * 100:.1f}% (閾値: {threshold * 100:.0f}%)"
+            f"{substrate_el} concentration (mean of the bottom {n_bottom} points): "
+            f"{bottom_conc * 100:.1f}% (threshold: {threshold * 100:.0f}%)"
         ),
     )
 

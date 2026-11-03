@@ -1,18 +1,18 @@
-"""結合エネルギーの解決。
+"""Resolution of binding energies.
 
-2 つの表を引く:
+Two tables are consulted:
 
 * `CoreLevelBindingEnergyCompoundTable_NIST.csv`  (Element, SpectralLine, Formula, BE_eV)
 * `BindingEnergyTable.csv`                        (ElementSymbol, 1s, 2s, ...)
 
-**既存 MATLAB データセットの値は、この 2 表だけからは完全には再構成できない。**
-表に複数の行がある、行が無い、あるいは GUI で編集された化学種は、
-表だけからは再構成できないことがある。
-結合エネルギーは GUI で編集できる値なので、データセットごとの状態でもある。したがって:
+**The values of existing MATLAB datasets cannot be fully reconstructed from these two tables alone.**
+A species with several rows in the table, with no row, or edited in the GUI
+may not be reconstructible from the tables.
+Binding energies are editable in the GUI, so they are also per-dataset state. Therefore:
 
-* 通常生成では **cfg で明示指定**でき、由来を manifest に記録する。
-* 表から引けたものは引き、化学種ごとに `compound` / `element` / `explicit` を残す。
-* 「表から引いた」と「与えられた」を混ぜて 1 つの数字として報告しない。
+* in normal generation they **can be given explicitly in cfg**, and the origin is recorded in the manifest;
+* what can be looked up is looked up, and `compound` / `element` / `explicit` is kept per species;
+* "looked up" and "given" are never mixed into one reported number.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class BindingEnergyError(LookupError):
 @dataclass(frozen=True)
 class BindingEnergies:
     values: np.ndarray                 # (ne,) eV
-    provenance: List[str]              # 化学種ごとに "compound" | "element" | "explicit"
+    provenance: List[str]              # per species: "compound" | "element" | "explicit"
     detail: List[str]
     sources: Dict[str, Dict[str, object]]
 
@@ -64,7 +64,7 @@ def resolve(
     compound_table: Path | str | None = None,
     element_table: Path | str | None = None,
 ) -> BindingEnergies:
-    """化学種ごとに BE を決める。`explicit` が与えられた要素はそれを最優先する。"""
+    """Decide the BE of each species. An `explicit` value, where given, takes precedence."""
     n = len(symbols)
     explicit = list(explicit) if explicit is not None else [None] * n
     if not (len(orbitals) == len(compounds) == len(explicit) == n):
@@ -112,7 +112,7 @@ def resolve(
             detail.append(f"{key}: unique row in the compound table")
             continue
         if len(hits) > 1:
-            # 選択規則が未宣言なので、**黙って中央値などを取らない**
+            # The selection rule is undeclared, so **do not silently take the median or similar**
             missing.append(f"{key}: {len(hits)} compound rows ({min(hits)}..{max(hits)}); "
                            "selection rule is not declared -- pass it in cfg")
             prov.append("unresolved"); detail.append("ambiguous"); values[i] = np.nan

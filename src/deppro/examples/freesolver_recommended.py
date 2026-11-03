@@ -1,9 +1,9 @@
 """
-FreeSolver で SolverConfig.recommended() を使う例
+FreeSolver with SolverConfig.recommended()
 =================================================
-MEM + Exponential Prior + 束縛条件による3層膜再構成
+Reconstruction of a three-layer film with MEM + exponential prior + constraints
 
-この例では、Al2O3/SiO2/Si 3層膜の深さプロファイルを再構成します。
+This example reconstructs the depth profile of an Al2O3/SiO2/Si three-layer film.
 """
 
 import numpy as np
@@ -20,7 +20,7 @@ from deppro import (
 
 
 def create_3layer_profile(depth, d1=15.0, d2=45.0, sigma=3.0):
-    """3層膜プロファイル (Al2O3/SiO2/Si)"""
+    """Three-layer profile (Al2O3/SiO2/Si)"""
     n_depth = len(depth)
     D = np.zeros((n_depth, 4))
 
@@ -39,13 +39,13 @@ def create_3layer_profile(depth, d1=15.0, d2=45.0, sigma=3.0):
 
 
 def main():
-    # ========== 設定 ==========
+    # ========== Settings ==========
     depth = np.arange(0, 100, 2.0)
     angles = np.array([0, 30, 45, 60])
     d1_true, d2_true = 15.0, 45.0
     photon_energy = 1486.6  # Al Kα
 
-    # 元素定義（酸化状態を指定）
+    # Element definitions (with oxidation states)
     elements = [
         ElementConfig('Al', '2p', 'Al2O3', oxidation_state=3),
         ElementConfig('Si', '2p', 'SiO2', oxidation_state=4),
@@ -53,21 +53,21 @@ def main():
         ElementConfig('O', '1s', 'SiO2', oxidation_state=-2),
     ]
 
-    # 基板のIMFP計算
+    # IMFP of the substrate
     imfp_si = IMFP.tpp2m(
         KE=photon_energy - 99.5,  # Si 2p BE
         Nv=4, density=2.33, Aw=28.09, Eg=1.1
     )
     print(f"IMFP(Si) = {imfp_si:.1f} Å")
 
-    # ========== 真のプロファイルと観測データ ==========
+    # ========== True profile and observed data ==========
     D_true = create_3layer_profile(depth, d1_true, d2_true)
 
-    # 転送行列
+    # Transfer matrix
     tm = TransferMatrix(depth=depth, step_size=2.0, angles=angles, photon_energy=photon_energy)
     tm.compute(D_true, elements)
 
-    # 観測データ（2%ノイズ付加）
+    # Observed data (2 % noise added)
     I_true = tm.forward(D_true, normalize=True)
     np.random.seed(42)
     noise = np.random.randn(*I_true.shape) * 0.02 * I_true
@@ -75,31 +75,31 @@ def main():
     I_obs = np.maximum(I_obs, 1e-6)
     I_obs = I_obs / I_obs.sum(axis=1, keepdims=True)
 
-    # ========== FreeSolver 推奨設定 ==========
+    # ========== Recommended FreeSolver settings ==========
     # 1. Exponential Prior (d = λ_substrate)
     D_prior = create_exponential_prior(
         depth, n_elements=4, substrate_idx=2,
         d_penetration=imfp_si
     )
 
-    # 2. SolverConfig.recommended() の設定を使う
+    # 2. Use the settings of SolverConfig.recommended()
     config = SolverConfig.recommended(alpha=0.0003)
 
-    # 3. ソルバー実行
+    # 3. Run the solver
     solver = FreeSolver(tm, config, D_prior, elements=elements)
     result = solver.solve(I_obs, D_init=D_prior.copy(), verbose=True)
 
-    # ========== 結果評価 ==========
+    # ========== Evaluation ==========
     D_est = result.D_opt
     rmse = np.sqrt(np.mean((D_est - D_true)**2))
 
     print("\n" + "=" * 60)
-    print("再構成結果")
+    print("Reconstruction")
     print("=" * 60)
     print(f"RMSE: {rmse:.4f}")
     print(f"chi²: {result.chi2:.2e}")
     print()
-    print(f"{'元素':<10} {'真値(0Å)':>10} {'推定(0Å)':>10} {'真値(80Å)':>10} {'推定(80Å)':>10}")
+    print(f"{'Element':<10} {'True(0Å)':>10} {'Est(0Å)':>10} {'True(80Å)':>10} {'Est(80Å)':>10}")
     print("-" * 60)
 
     element_names = ['Al³⁺', 'Si⁴⁺', 'Si⁰', 'O²⁻']

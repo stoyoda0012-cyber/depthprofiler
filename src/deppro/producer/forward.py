@@ -1,21 +1,21 @@
-"""D -> X。既存カーネル `deppro.transfer_matrix` を再利用する（4つ目の数式実装を作らない）。
+"""D -> X. Reuses the existing kernel `deppro.transfer_matrix` (no fourth implementation of the formula).
 
-MATLAB 側（`+deppro/+core/TransformationMatrix.m` と `CalculateDistribution.m`）:
+MATLAB side (`+deppro/+core/TransformationMatrix.m` and `CalculateDistribution.m`):
 
     lambda(z,i) = gamma_eff / sum_a D(z,a) / lambda_basic(a,i)
     t1(th,z,i)  = -dz / (lambda(z,i) * cos th)
-    T(th,z,i)   = cumprod_z(exp t1) / exp t1        # z より上の層だけ（z 自身を含まない）
+    T(th,z,i)   = cumprod_z(exp t1) / exp t1        # only the layers above z (not z itself)
     I(th,i)     = sum_z T(th,z,i) * D(z,i)
     [noise on I]
     X(th,i)     = I(th,i) / sum_j I(th,j)
 
-**軸の向きに注意**: MATLAB の `lambdabasic(a,i)` は a=物質・i=放出元素。
-`TransferMatrix.calculate_lambda_obs` は `lambda_basic[e, i]` を e=放出元素・i=組成の
-順で読むので、**転置して渡す**。この向きはノイズゼロの生成データとの照合で決めた（転置すると値がずれる）。
+**Mind the axis orientation**: MATLAB's `lambdabasic(a,i)` has a = material, i = emitting element.
+`TransferMatrix.calculate_lambda_obs` reads `lambda_basic[e, i]` as e = emitting element,
+i = composition, so **it is passed transposed**. The orientation was settled against noise-free generated data (transposing shifts the values).
 
-SV の更新は D だけを使うので（`SimulationUpdater.computeSimulationObservables` で
-p/h/w はすべて Dobs から作られる）、**forward は逐次再帰の外**にある。D が確定したあとで
-まとめて回してよい。
+The SV update uses only D (in `SimulationUpdater.computeSimulationObservables` p/h/w are
+all made from Dobs), so **forward is outside the sequential recursion**: it may be run in
+one go once D is final.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class ForwardSpec:
     angles_deg: np.ndarray     # (nth,)
     step_size: float           # Å
     gamma_eff: float
-    lambda_basic: np.ndarray   # L[a, i]  (MATLAB の向き)
+    lambda_basic: np.ndarray   # L[a, i]  (MATLAB orientation)
 
 
 def _kernel(spec: ForwardSpec) -> TransferMatrix:
@@ -46,10 +46,10 @@ def _kernel(spec: ForwardSpec) -> TransferMatrix:
 
 
 def transfer_and_intensity(d: np.ndarray, spec: ForwardSpec):
-    """1 画素ぶんの ``(T, I, X)``。T は **その画素の D から**作り直す。
+    """``(T, I, X)`` of one pixel. T is rebuilt **from that pixel's D**.
 
-    保存されている `/ezdeprof/TransMatObs` は T(Dopt) であって GT のどの画素の
-    T でもない。使い回すと角度依存の残差が出る。
+    The stored `/ezdeprof/TransMatObs` is T(Dopt), not the T of any GT pixel.
+    Reusing it leaves an angle-dependent residual.
     """
     d = np.asarray(d, dtype=float)
     tm = _kernel(spec)
@@ -63,11 +63,11 @@ def transfer_and_intensity(d: np.ndarray, spec: ForwardSpec):
 def observations(profiles: np.ndarray, spec: ForwardSpec):
     """``D[s,z,e]`` -> ``(I[s,th,e], X[s,th,e])``。
 
-    画素どうしは独立なので、どう分割しても結果は変わらない。
+    Pixels are independent, so the result does not depend on how they are split.
 
-    2026-09-09: `chunk` 引数を外した。**外側のループを 1 本増やしていただけで、内側は
-    結局 1 画素ずつ回しており、値にも速度にも効いていなかった**（解析検証側の指摘）。
-    分割が要るなら呼び出し側で `profiles` を切って渡す。
+    2026-09-09: the `chunk` argument was removed. **It only added an outer loop; the inner
+    loop still went one pixel at a time, so it affected neither values nor speed** (noted by the analysis-side review).
+    If splitting is needed, slice `profiles` on the caller's side.
     """
     profiles = np.asarray(profiles, dtype=float)
     ns, nz, ne = profiles.shape

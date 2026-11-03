@@ -1,12 +1,12 @@
-"""材料表 -> 定数 -> lambda_basic。
+"""Material table -> constants -> lambda_basic.
 
-MATLAB 側の対応（`+deppro/+core/DeterminingLambdaBasic.m`）:
+MATLAB counterpart (`+deppro/+core/DeterminingLambdaBasic.m`):
 
     lambdabasic(ii,i,k) = xps.IMFP.calculate(KE(i), Nv(ii), rho(ii), Mw(ii), Eg(ii), TPPver)
     KE(i) = photonenergy(k) - bindingenergy(i) - workfunction
 
-`ii` が**物質**、`i` が**放出元素**。転置すると値がずれるので、
-戻り値の軸名 (a, i) をそのまま契約とする。TPPver=3 が TPP-2M。
+`ii` is the **material**, `i` the **emitting element**. Transposing shifts the values, so
+the axis names (a, i) of the return value are the contract. TPPver=3 is TPP-2M.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import numpy as np
 from deppro.imfp import IMFP
 from deppro.paths import env_path_or_placeholder
 
-# CompoundTable.csv の列名。表が変われば hash が変わるので、列名の想定もここに置く。
+# Column names of CompoundTable.csv. A changed table changes the hash, so the column assumptions live here too.
 _COLUMNS = {
     "valence_charge": "ValenceCharge",
     "density": "Density [g/cm3]",
@@ -34,16 +34,16 @@ TPP_VERSIONS = {3: "TPP-2M"}
 
 
 class CompoundTableError(LookupError):
-    """表が読めない、または必要な化合物が無い。"""
+    """The table cannot be read, or a required compound is missing."""
 
 
 @dataclass(frozen=True)
 class MaterialConstants:
-    """1 系列ぶんの材料定数と、その出所。
+    """Material constants of one series, and where they came from.
 
-    `source_sha256` は「どの表を使ったか」を後から言えるようにするためのもの。
-    **過去に生成されたファイルへ遡及して現在の表の hash を当ててはいけない**
-    （生成時点の表が同じだったことの証拠にはならない）。
+    `source_sha256` exists so that "which table was used" can be stated afterwards.
+    **Never apply the hash of the current table retroactively to files generated earlier**
+    (it is no evidence that the table was the same at generation time).
     """
 
     compounds: tuple
@@ -59,14 +59,14 @@ class MaterialConstants:
 def compound_table_path() -> Path:
     """`DEPPRO_COMPOUND_TABLE_PATH`。
 
-    未設定でも import は通り、ここを呼んだ段で変数名を含むエラーになる。
-    MATLAB アプリ配下の既定パスへ暗黙に依存しない。
+    Importing works with it unset; the error, naming the variable, comes when this is called.
+    No implicit dependence on a default path under the MATLAB app.
     """
     return env_path_or_placeholder("DEPPRO_COMPOUND_TABLE_PATH")
 
 
 def read_compound_table(compounds: Sequence[str], path: Path | str | None = None) -> MaterialConstants:
-    """化合物名で表を引き、定数と表の hash を返す。"""
+    """Look up the table by compound name; return the constants and the table hash."""
     p = Path(path).expanduser() if path is not None else compound_table_path()
     if not p.is_file():
         raise CompoundTableError(
@@ -100,9 +100,9 @@ def lambda_basic(
     work_function: float,
     tpp_version: int = 3,
 ) -> np.ndarray:
-    """``L[a, i]`` = 元素 i の光電子が物質 a 中を進むときの IMFP (Å)。
+    """``L[a, i]`` = IMFP (Å) of a photoelectron of element i traveling through material a.
 
-    軸の向きは MATLAB の `lambdabasic(ii,i)` と同じ。転置しない。
+    Same axis orientation as MATLAB's `lambdabasic(ii,i)`. Not transposed.
     """
     if tpp_version not in TPP_VERSIONS:
         raise NotImplementedError(

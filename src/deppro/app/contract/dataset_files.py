@@ -1,11 +1,11 @@
-"""データセットフォルダの規約と主 H5 の特定（preflight と contract の共通部品）。
+"""Dataset-folder conventions and identification of the main H5 (shared by preflight and contract).
 
-規約: ``{Standard,Checkered}/{Nx}x{Ny}x{Nt}_{N}elem[_variant]/``（benchmarks/paths.py）。
-variant の語彙は検証しない（``noisy_cli`` も variant として受ける。差分表の合意）。
-主 H5 の規則: ``.prj`` と同じ stem の非スペクトル H5 → 無ければ非スペクトル H5 が 1 本ならそれ →
-それでも無ければ producer 命名 ``<6 桁日付><元素記号列>.h5`` に合うものが 1 本ならそれ。
-どれにも当たらなければ特定不能。採用した規則は必ず記録する。派生 H5（``_mlx.h5`` 等）は
-独立標本として数えない。
+Convention: ``{Standard,Checkered}/{Nx}x{Ny}x{Nt}_{N}elem[_variant]/`` (benchmarks/paths.py).
+The variant vocabulary is not validated (``noisy_cli`` is accepted as a variant; agreed in the diff table).
+Rule for the main H5: the non-spectrum H5 with the same stem as the ``.prj`` → else the only non-spectrum H5, if there is one →
+else the only file matching the producer naming ``<6-digit date><element symbols>.h5``, if there is one.
+If none applies, it cannot be identified. The rule used is always recorded. Derived H5 files (``_mlx.h5`` and the like) are
+not counted as independent samples.
 """
 from __future__ import annotations
 
@@ -19,9 +19,9 @@ import numpy as np
 FAMILIES = ("Standard", "Checkered")
 FOLDER_RE = re.compile(
     r"^(?P<nx>\d+)x(?P<ny>\d+)x(?P<nt>\d+)_(?P<ncomp>\d+)elem(?:_(?P<variant>.+))?$")
-# 元素別スペクトルファイル: Si1s_..., Al1s_..., Ti2p3_... のような接頭辞
+# Per-element spectrum files: prefixes such as Si1s_..., Al1s_..., Ti2p3_...
 SPECTRA_RE = re.compile(r"^[A-Z][a-z]?\d[spdf]\d?_")
-# producer の主 H5 名: 6 桁日付 + 元素記号列（例 YYMMDD + OCAlTiSi → 250101OCAlTiSi.h5）
+# Producer's main H5 name: 6-digit date + element symbols (e.g. YYMMDD + OCAlTiSi → 250101OCAlTiSi.h5)
 PRODUCER_NAME_RE = re.compile(r"^\d{6}[A-Za-z]+\.h5$")
 
 
@@ -44,7 +44,7 @@ class FolderSpec:
 
 
 def parse_dataset_folder(folder: Path) -> Optional[FolderSpec]:
-    """``{Nx}x{Ny}x{Nt}_{N}elem[_variant]`` を解釈する。合わなければ None。"""
+    """Parse ``{Nx}x{Ny}x{Nt}_{N}elem[_variant]``. None if it does not match."""
     m = FOLDER_RE.match(Path(folder).name)
     if not m:
         return None
@@ -55,7 +55,7 @@ def parse_dataset_folder(folder: Path) -> Optional[FolderSpec]:
 
 
 def discover_files(folder: Path) -> Dict[str, Any]:
-    """主 H5・派生 H5・元素別スペクトル・prj・manifest を分ける（規則は ``rule`` に記録）。"""
+    """Separate main H5, derived H5, per-element spectra, prj and manifest (the rule is recorded in ``rule``)."""
     folder = Path(folder)
     h5s = sorted(folder.glob("*.h5"))
     spectra = [p for p in h5s if SPECTRA_RE.match(p.name)]
@@ -75,13 +75,13 @@ def discover_files(folder: Path) -> Dict[str, Any]:
     return {
         "main": main, "derived": derived, "spectra": spectra, "prj": prj,
         "rule": rule, "manifest": folder / "manifest.json",
-        "derived_view": folder / "derived_view.json",   # dpIngest の GUI 検証用コピーの印
+        "derived_view": folder / "derived_view.json",   # marker of a GUI-check copy made by dpIngest
         "other_json": [p for p in jsons if p.name not in ("manifest.json", "derived_view.json")],
     }
 
 
 def decode_strings(v: Any) -> Any:
-    """MATLAB 由来の文字列配列（bytes/object）を Python 文字列リストへ。数値はそのまま。"""
+    """MATLAB string arrays (bytes/object) to a list of Python strings. Numbers are left as they are."""
     a = np.asarray(v)
     if a.dtype.kind in "OSU":
         out: List[str] = []
@@ -94,13 +94,13 @@ def decode_strings(v: Any) -> Any:
 
 
 def matlab_index_list(v: Any) -> List[int]:
-    """MATLAB 由来の 1-based インデックス配列（0 は「なし」の番兵）を 1-based の int リストに。"""
+    """MATLAB 1-based index arrays (0 is the "none" sentinel) to a list of 1-based ints."""
     a = np.asarray(v).ravel().astype(int)
     return [int(i) for i in a if i != 0]
 
 
 def jsonable(o: Any) -> Any:
-    """numpy 型を素の Python へ。非有限 float は None（NaN/Inf を JSON に書かない）。"""
+    """numpy types to plain Python. Non-finite floats become None (no NaN/Inf in JSON)."""
     if isinstance(o, dict):
         return {str(k): jsonable(v) for k, v in o.items()}
     if isinstance(o, (list, tuple)):

@@ -1,8 +1,8 @@
 """Bridge B+C: Read ezdeprof metadata and batch-solve depth profiles.
 
-橋B — ``read_ezdeprof()`` reads TransferMatrix params + ElementConfig from Dstk H5.
-橋C — ``batch_solve()`` applies a solver (free/semifree/nn/hybrid) to all pixels.
-Glue — ``run_pipeline()`` chains 橋A→B→C→D in a single call.
+Bridge B — ``read_ezdeprof()`` reads TransferMatrix params + ElementConfig from Dstk H5.
+Bridge C — ``batch_solve()`` applies a solver (free/semifree/nn/hybrid) to all pixels.
+Glue — ``run_pipeline()`` chains bridges A→B→C→D in a single call.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# 橋B: read_ezdeprof
+# Bridge B: read_ezdeprof
 # ---------------------------------------------------------------------------
 
 
@@ -104,7 +104,7 @@ def read_ezdeprof(h5_path: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# 橋C: batch_solve
+# Bridge C: batch_solve
 # ---------------------------------------------------------------------------
 
 
@@ -123,7 +123,7 @@ def batch_solve(
 
     Parameters
     ----------
-    I_elem : (n_px, n_angles, n_elem) — peak-area intensities from 橋A.
+    I_elem : (n_px, n_angles, n_elem) — peak-area intensities from bridge A.
     ezdeprof : dict from :func:`read_ezdeprof`.
     solver : ``"free"`` | ``"semifree"`` | ``"nn"`` | ``"hybrid"``.
     method : SolverConfig method (``"LLS"``, ``"L2"``, etc.).
@@ -135,7 +135,7 @@ def batch_solve(
 
     Returns
     -------
-    depth_map : (n_px, n_depth, n_elem) float32 — ready for 橋D.
+    depth_map : (n_px, n_depth, n_elem) float32 — ready for bridge D.
     """
     from deppro.app import DEPPRO_AVAILABLE
 
@@ -355,8 +355,8 @@ def run_pipeline(
 
     Parameters
     ----------
-    fitpara_paths : H5 paths for 橋A (element-per-file or single Dstk).
-    dstk_path : Dstk H5 with /ezdeprof metadata (橋B).
+    fitpara_paths : H5 paths for bridge A (element-per-file or single Dstk).
+    dstk_path : Dstk H5 with /ezdeprof metadata (bridge B).
     solver : ``"free"`` | ``"semifree"`` | ``"nn"`` | ``"hybrid"``.
     output_dir : Output directory (default: ``"output"``).
     progress_callback : Optional ``(current, total)`` callback for progress reporting.
@@ -371,30 +371,30 @@ def run_pipeline(
     from deppro.app.depth_result_writer import write_depth_estimate
     from deppro.app.fitpara_reader import read_fitpara_areas
 
-    # 橋A: fitpara → I_elem
+    # Bridge A: fitpara → I_elem
     _t0 = _time.perf_counter()
     I_elem, meta_a = read_fitpara_areas(fitpara_paths)
-    log.info("橋A: I_elem %s from %d files (%.1fs)", I_elem.shape, len(fitpara_paths), _time.perf_counter() - _t0)
+    log.info("bridge A: I_elem %s from %d files (%.1fs)", I_elem.shape, len(fitpara_paths), _time.perf_counter() - _t0)
 
-    # 橋B: Dstk H5 → ezdeprof dict
+    # Bridge B: Dstk H5 → ezdeprof dict
     _t0 = _time.perf_counter()
     ezdeprof = read_ezdeprof(dstk_path)
-    log.info("橋B: %d elements (%.1fs)", len(ezdeprof.get("element_names", [])), _time.perf_counter() - _t0)
+    log.info("bridge B: %d elements (%.1fs)", len(ezdeprof.get("element_names", [])), _time.perf_counter() - _t0)
 
     # ── Element alignment ──
     # fitpara may have fewer elements than ezdeprof (e.g. flat spectra skipped).
     # Align ezdeprof to match the fitpara element subset.
     I_elem, ezdeprof = _align_elements(I_elem, meta_a, ezdeprof)
 
-    # 橋C: I_elem + ezdeprof → depth_map
+    # Bridge C: I_elem + ezdeprof → depth_map
     _t0 = _time.perf_counter()
     depth_map = batch_solve(
         I_elem, ezdeprof, solver=solver,
         progress_callback=progress_callback, **solver_kwargs,
     )
-    log.info("橋C: depth_map %s (solver=%s, %.1fs)", depth_map.shape, solver, _time.perf_counter() - _t0)
+    log.info("bridge C: depth_map %s (solver=%s, %.1fs)", depth_map.shape, solver, _time.perf_counter() - _t0)
 
-    # 橋D: depth_map → output H5
+    # Bridge D: depth_map → output H5
     if output_dir is None:
         output_dir = "output"
     metadata = {
@@ -411,7 +411,7 @@ def run_pipeline(
         solver=solver.upper(),
         I_obs=I_elem,
     )
-    log.info("橋D: %s", output_path)
+    log.info("bridge D: %s", output_path)
     return output_path
 
 

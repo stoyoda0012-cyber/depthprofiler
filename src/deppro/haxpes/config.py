@@ -78,14 +78,14 @@ class HAXPESInstrumentConfig:
 
     Attributes:
         photon_energy: Excitation energy in eV (e.g., 9251.74 for Ga Ka).
-        polar_offset: アナライザー中心軸（レンズ軸, 検出器角 ang = 0）から
-            試料法線までの polar 角［度］。放出角は emission = ang + polar_offset。
-            注: 保持 bin の中心角とは一致しない（996/1001 ch 由来で 0.18 deg 低い）。
-        tilt_angle: ``polar_offset`` の旧名（非推奨、dataclass のフィールドではない）。
-            生成時に ``tilt_angle=`` を渡すと DeprecationWarning を出して
-            ``polar_offset`` に入れる。``polar_offset`` と異なる値を一緒に渡すと
-            TypeError。読むときの ``.tilt_angle`` も DeprecationWarning を出して
-            ``polar_offset`` を返す。
+        polar_offset: polar angle [degrees] from the analyzer central axis (lens axis,
+                detector angle ang = 0) to the sample normal. Emission = ang + polar_offset.
+                Note: it does not coincide with the center angle of the kept bins (0.18 deg lower, from the 996/1001 channels).
+        tilt_angle: old name of ``polar_offset`` (deprecated; not a dataclass field).
+                Passing ``tilt_angle=`` at construction emits a DeprecationWarning and stores
+                it in ``polar_offset``. Passing it together with a different ``polar_offset``
+                is a TypeError. Reading ``.tilt_angle`` also emits a DeprecationWarning and
+                returns ``polar_offset``.
         detector_range: Detector angular range (lo, hi) in degrees.
         n_detector_channels: Number of detector pixels (1001 for Angular56).
         n_prebinned_angles: Number of pre-binned angle channels (12 for PXT).
@@ -110,13 +110,13 @@ class HAXPESInstrumentConfig:
         n = n_channels or self.n_detector_channels
         det_angle = np.linspace(self.detector_range[0],
                                 self.detector_range[1], n)
-        # flip は検出器 row とアナライザー channel の読み替え。
-        # 2D 検出器がアナライザー下側に実装されており row 順が角度分散軸に対し反転する
-        # （上側実装なら不要）。角度の符号反転 (polar_offset - det) ではない。
-        # ただし、ここで flip する既定の 1001 ch 全格子（±36.84 deg）は 0 対称なので、この箇所では両者は一致する。
-        # 一致しないのは 12 bin の pre-binned 格子（emission_angles_prebinned・load_prebinned_pxt）で、
-        # 996/1001 ch 由来で 2.5 ch = 0.184 deg 偏心しており、符号反転と読み替えると
-        # 全 bin 一律 0.368 deg ずれる。
+        # flip is a reinterpretation of detector rows as analyzer channels.
+        # The 2D detector is mounted below the analyzer, so the row order is reversed relative to the
+        # angular-dispersion axis (not needed for a top mount). It is not a sign flip of the angle (polar_offset - det).
+        # Here, though, the default full 1001-channel grid being flipped (±36.84 deg) is symmetric about 0, so at this point the two coincide.
+        # They differ on the 12-bin pre-binned grid (emission_angles_prebinned, load_prebinned_pxt), which comes
+        # from 996/1001 channels and is off-center by 2.5 ch = 0.184 deg; read as a sign flip, every bin
+        # shifts by a uniform 0.368 deg.
         return np.flip(det_angle) + self.polar_offset
 
     def emission_angles_prebinned(self) -> np.ndarray:
@@ -133,11 +133,11 @@ class HAXPESInstrumentConfig:
             self.detector_bin_hi,
             self.n_prebinned_angles,
         )
-        # flip は検出器 row とアナライザー channel の読み替え。
-        # 2D 検出器がアナライザー下側に実装されており row 順が角度分散軸に対し反転する
-        # （上側実装なら不要）。角度の符号反転 (polar_offset - det) ではない。
-        # グリッドは 996/1001 ch 由来で 2.5 ch = 0.184 deg 偏心しており両者は一致しない。
-        # 符号反転と読み替えると全 bin 一律 0.368 deg ずれる。
+        # flip is a reinterpretation of detector rows as analyzer channels.
+        # The 2D detector is mounted below the analyzer, so the row order is reversed relative to the
+        # angular-dispersion axis (not needed for a top mount). It is not a sign flip of the angle (polar_offset - det).
+        # The grid comes from 996/1001 channels and is off-center by 2.5 ch = 0.184 deg, so the two do not coincide.
+        # Reading it as a sign flip shifts every bin by a uniform 0.368 deg.
         return np.flip(det_centers) + self.polar_offset
 
 

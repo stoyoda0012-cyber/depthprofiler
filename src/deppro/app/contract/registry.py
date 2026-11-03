@@ -1,22 +1,22 @@
-"""ベンチマーク対象データセットの台帳（含める / 除く判断とその理由・根拠を機械可読に持つ）。
+"""Registry of the benchmark datasets (the include / exclude decisions with their reasons and evidence, machine-readable).
 
-台帳の中身はコードに持たない。JSON ファイル（``schema: deppro-dataset-registry/1``）から読む:
+The registry contents are not in code. They are read from a JSON file (``schema: deppro-dataset-registry/1``):
 
     {"schema": "deppro-dataset-registry/1", "as_of": "YYYY-MM-DD",
      "entries": [{"folder_rel": "Family/name", "status": "INCLUDED", "reason": "...",
                   "evidence": ["<preflight item id>", ...], "notes": "", "identity": null}, ...]}
 
-``load_registry(path)`` で明示的に読むか、``DEPPRO_DATASET_REGISTRY`` にそのパスを設定する。
-未設定なら既定の台帳は空で、どのデータセットも「台帳にない」と答える（import は常に通る）。
-台帳はデータセットのファイルを移動・削除・修正しない。状態は preflight
-（``deppro.diagnostics.dataset_preflight``）の再走査で更新する。
+Read it explicitly with ``load_registry(path)``, or set its path in ``DEPPRO_DATASET_REGISTRY``.
+With it unset the default registry is empty and every dataset is "not in the registry" (importing always works).
+The registry does not move, delete or modify dataset files. Its state is updated by a
+preflight rescan (``deppro.diagnostics.dataset_preflight``).
 
 status:
-  INCLUDED                   ベンチマーク対象。preflight FAIL なし（WARN は排除理由にしない）
-  EXCLUDED                   preflight FAIL。理由を持つ。ファイルはそのまま
-  DERIVED                    既存再構成のコピー（_NN/_SLSQP）や派生ビュー。独立標本として数えない
-  SEPARATE_REGIME_CANDIDATE  旧 writer 規約（fencepost 格子等）。サイズ系列の比較に入れない
-  UNRESOLVED_PROVENANCE      noise ラベル矛盾や prj/スペクトル欠落。由来確認まで対象外
+  INCLUDED                   benchmark target. No preflight FAIL (a WARN is not a reason for exclusion)
+  EXCLUDED                   preflight FAIL. Carries a reason. Files are left as they are
+  DERIVED                    a copy of an existing reconstruction (_NN/_SLSQP) or a derived view. Not counted as an independent sample
+  SEPARATE_REGIME_CANDIDATE  old writer conventions (fencepost grid and the like). Not included in the size-series comparison
+  UNRESOLVED_PROVENANCE      contradictory noise label, or missing prj/spectra. Excluded until the provenance is confirmed
 """
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class DatasetEntry:
     reason: str = ""
     evidence: Tuple[str, ...] = ()      # preflight item ids / codes
     notes: str = ""
-    identity: Optional[str] = None      # "main=<主 H5 名>; gen=<generationId>" — フォルダ名は再生成で中身が変わりうる
+    identity: Optional[str] = None      # "main=<main H5 name>; gen=<generationId>" — a folder name can change contents on regeneration
 
     @property
     def family(self) -> str:
@@ -57,7 +57,7 @@ class DatasetEntry:
 class Registry:
     entries: Tuple[DatasetEntry, ...]
     as_of: Optional[str] = None
-    source: Optional[str] = None        # 読んだファイルのパス。空の既定台帳なら None
+    source: Optional[str] = None        # path of the file read. None for the empty default registry
 
     def __post_init__(self):
         object.__setattr__(self, "entries", tuple(self.entries))
@@ -80,7 +80,7 @@ class Registry:
 
 
 def load_registry(path: Union[str, Path]) -> Registry:
-    """台帳 JSON を読む。schema が違えば ValueError。"""
+    """Read the registry JSON. ValueError if the schema differs."""
     p = Path(path).expanduser()
     data = json.loads(p.read_text(encoding="utf-8"))
     if not isinstance(data, dict) or data.get("schema") != SCHEMA:
@@ -101,9 +101,9 @@ def load_registry(path: Union[str, Path]) -> Registry:
 
 
 def default_registry() -> Registry:
-    """``DEPPRO_DATASET_REGISTRY`` の台帳。未設定（空文字列を含む）なら空の台帳。
+    """The registry of ``DEPPRO_DATASET_REGISTRY``. Empty registry when unset (including an empty string).
 
-    呼ぶたびにファイルを読む（キャッシュしない）。
+    The file is read on every call (no caching).
     """
     path = env_value(ENV_VAR)
     if path is None:
@@ -123,13 +123,13 @@ def entry(folder_rel: str, registry: Optional[Registry] = None) -> Optional[Data
 
 
 def benchmark_targets(family: Optional[str] = None, registry: Optional[Registry] = None) -> List[DatasetEntry]:
-    """ベンチマーク対象 = INCLUDED のみ。"""
+    """Benchmark targets = INCLUDED only."""
     return [e for e in _resolve(registry).entries
             if e.status == INCLUDED and (family is None or e.family == family)]
 
 
 def excluded(registry: Optional[Registry] = None) -> List[DatasetEntry]:
-    """INCLUDED 以外。どれも理由を持つ（``Registry`` の構築時に検査済み）。"""
+    """Everything but INCLUDED. Each carries a reason (checked when the ``Registry`` is built)."""
     return [e for e in _resolve(registry).entries if e.status != INCLUDED]
 
 
