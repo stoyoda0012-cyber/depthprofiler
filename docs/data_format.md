@@ -91,7 +91,8 @@ group 配置・grid の記録場所・`dxdydt` の有無と意味がそれぞれ
   時間次元ではない。
 - **D5** — `[1, 1, 100]` の固定値。参照ファイルとの互換のために書かれている
   **legacy metadata** で、この値から grid や時間構造を読み取ることはできない。
-- **D1 / D3** — 存在しない。
+- **D3** — `[[nx, ny, nt]]`。`finalize(nx=, ny=)` に渡した grid と、`n_pixels // (nx*ny)` の時間次元（D4 と同じ layout）。未指定なら `[[n_pixels, 1, 1]]`。
+- **D1** — 存在しない。
 
 `generate_checkered.py` の空間変調式に出てくる `dx`, `dy`（`eff_dx`/`eff_dy` は
 未指定時に `nx`/`ny` へフォールバック）は**生成側の変調レートのパラメータ**で
@@ -137,6 +138,6 @@ with h5py.File(path, "r") as f:
 
 - `D_est` がある → **D4**
 - `Dtrn` / `Xrlt` / `currentstack` がある → **D2**
-- `Dstk` があり `dxdydt` が無い → **D1** か **D3**
-  （`elementsymbol` があれば D3、`ez.attrs["nx"]` があれば D1）
+- `Dstk` があり `dxdydt` が無い → **D1**（`ez.attrs["nx"]` を持つ）
+- `Dstk` と `elementsymbol` と `dxdydt` がある → **D3**（shape (1,3)。古い D3 には `dxdydt` が無い）
 - `dxdydt == [1, 1, 100]` → **D5** の可能性が高い（固定値なので grid には使えない）
