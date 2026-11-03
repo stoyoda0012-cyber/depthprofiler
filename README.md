@@ -4,11 +4,84 @@
 
 A Japanese version of this README is at [`docs/ja/README.md`](docs/ja/README.md); this English version is authoritative.
 
-`deppro` reconstructs depth profiles of composition, D(z), in thin films
-from angle-resolved XPS and HAXPES intensities. It solves the
-transfer-matrix inverse problem I = T·D with classical solvers (SciPy,
-the reference implementation), batched solvers on Apple-silicon GPUs
-(MLX) and a neural-network inverse solver. Python 3.11 or later.
+`deppro` reconstructs the depth profile of composition, D(z), of a thin
+film from angle-resolved XPS (AR-XPS) or HAXPES peak intensities. It is
+written for surface scientists who already have angle series — one
+sample, or every pixel of a spatial map — and who want to see how the
+composition profile, the film thickness and the interface position they
+infer depend on the choices made along the way: the structural
+assumption put into the inversion, the regularizer and its strength, and
+the preprocessing of the spectra (binning, background, cross sections,
+denoising).
+
+**Input**: peak intensities I(θ, element) from any peak-fitting program,
+or binned HAXPES frame stacks that the `haxpes` subpackage turns into
+intensities. **Output**: D(z) on a chosen depth grid, the fitted film
+thickness and interface position where the model has them, the forward
+prediction and misfit, and — for maps — per-pixel arrays and metrics.
+Python 3.11 or later.
+
+## What it is used for
+
+The three uses below are the ones the package supports today, with the
+API that does each. The same `TransferMatrix` (forward model) and the
+same observed intensities are shared by every solver, so a different
+inversion is a different solver or configuration, not a different
+dataset.
+
+**Thickness of a known layer structure.** When the layer sequence and
+the stoichiometry of each layer are known, `GenericLayerSolver` fits the
+layer thicknesses (optionally also interface widths and stoichiometric
+ratios) from the angle series; `python -m deppro.cli_depth solve
+--config multilayer.yaml` does the same from a YAML description
+(`src/deppro/examples/multilayer.yaml`).
+
+**Changing the structural assumption.** The three solvers put different
+amounts of prior structure into the inversion. `FreeSolver` leaves the
+composition at every depth free and relies on the regularizer and an
+optional prior profile; `SemiFreeSolver` models the substrate as an
+error-function step whose position (the film thickness) is fitted, and
+leaves the film composition free at every depth under charge-balance or
+stoichiometric constraints; `GenericLayerSolver` fixes the layer
+sequence. For any of them, `SolverConfig(method=...)` selects
+unregularised least squares or an L1, L2 or maximum-entropy regulariser,
+and the solver settings expose the remaining assumptions — the interface
+width (fixed by default, `optimize_abruptness`), a thickness prior
+(`t_prior_center`), the stoichiometric mode, the noise model (WLS,
+Anscombe, Poisson likelihood). Re-running the same intensities under
+another assumption is how the sensitivity of D(z), the thickness and the
+interface position to that assumption is examined.
+`src/deppro/examples/freesolver_recommended.py` is the FreeSolver case
+on a synthetic three-layer film; `docs/api_reference.md` has the
+configuration of each solver.
+
+**Maps, preprocessing and evaluation.** For a HAXPES spatial map,
+`deppro.haxpes` goes from frame stacks to a per-pixel depth profile
+(`process_single_pixel`, `run_3d_map` with multiprocessing), with the
+preprocessing choices — angle binning, background, cross-section source
+and non-dipole correction, angle trimming, the polar offset of the
+geometry — in `HAXPESSolverConfig` and `HAXPESInstrumentConfig`, and an
+optional bridge to the `dnndenoiser` package for denoising frames
+(`HaxpesDenoiser`). The batched MLX solvers (`deppro.solvers_mlx`) solve
+many pixels of a map at once on Apple-silicon GPUs. For evaluation,
+`deppro.simulate` generates synthetic profiles and intensities with a
+known truth, and `deppro.depth_profile` has the comparison metrics
+(`wasserstein_distance_1d`, `compare_profiles`, `detect_interfaces`);
+`deppro.tools.gt_vs_recon` puts a reconstruction next to its ground truth.
+
+What has been done with this so far, and what has not: the two
+published studies (below) kept the inversion fixed — `SemiFreeSolver`
+with L1 regularization and a fixed interface width — and compared
+denoising methods and exposure times through the per-pixel profiles,
+thicknesses and the Wasserstein-1 distance to a pseudo-ground truth. The
+sensitivity of the result to the fixed interface width (2.5–10 Å) is
+reported in §III.A of the JVST A paper. Comparing the three solver
+families, or the regularizers, on the same measured map has been done
+only on synthetic data in the test suite and benchmarks, not in a
+published study. The Monte Carlo and bootstrap error estimation in
+`deppro.batch_processor` is not available in this release (see "Known
+limitations"); `deppro.haxpes.bootstrap` has frame and block bootstraps
+for the HAXPES pipeline.
 
 ```
 AR-XPS / HAXPES spectra
@@ -17,15 +90,6 @@ AR-XPS / HAXPES spectra
     ▼  depth-profile inverse problem  … deppro (this repository)
 depth profile of composition D(z)
 ```
-
-## Layout
-
-| Location | Contents |
-|------|------|
-| `src/deppro/` | transfer matrix and the inverse solvers (LLS / MEM / L1 / L2), the NN inverse solver (`inference/`), the MLX solvers (`solvers_mlx/`), HAXPES preprocessing (`haxpes/`), simulation (`simulate/`), examples (`examples/`) |
-| `src/deppro/tests/`, `src/deppro/app/tests/` | the regression suite and the acceptance gates (the CI configuration is `.github/workflows/ci.yml`) |
-| `docs/` | environment variables, the H5 data format, the solver API, reproduction of the JVST/SIA papers |
-| `paper/` | the software paper (for JOSS; to be submitted after publication) |
 
 ## Installation
 
@@ -77,7 +141,18 @@ For the two papers that used this package (JVST A and SIA),
 recomputed from public material alone, what needs material from the authors, and
 what was actually run. The stored results of the Zenodo deposit can be checked with
 `python -m deppro.haxpes.deposit_replay` (pass the extracted deposit through
-`--sia-dir` / `--jvst-h5`; the steps are in the same document).
+`--sia-dir` / `--jvst-h5`; the steps are in the same document). That check
+recomputes the published metrics from the deposited profiles; it does not re-run
+the denoiser, the peak fit or the inversion.
+
+## Layout
+
+| Location | Contents |
+|------|------|
+| `src/deppro/` | transfer matrix and the inverse solvers (LLS / MEM / L1 / L2), the NN inverse solver (`inference/`), the MLX solvers (`solvers_mlx/`), HAXPES preprocessing (`haxpes/`), simulation (`simulate/`), examples (`examples/`) |
+| `src/deppro/tests/`, `src/deppro/app/tests/` | the regression suite and the acceptance gates (the CI configuration is `.github/workflows/ci.yml`) |
+| `docs/` | environment variables, the H5 data format, the solver API, reproduction of the JVST/SIA papers |
+| `paper/` | the software paper (for JOSS; to be submitted after publication) |
 
 ## Related repositories
 
@@ -95,6 +170,11 @@ Version 0.1.0. The API may change before 1.0.
 
 - `SemiFreeSolverConfig(gradient_mode=True)` is not available in this
   release and raises `NotImplementedError`.
+- The Monte Carlo and bootstrap paths of `deppro.batch_processor`
+  (`process_batch`, `monte_carlo_batch`, `bootstrap_batch` and the
+  `parallel_*` functions, and the `batch` / `monte-carlo` commands of
+  `cli_depth`) were written for a solver that has been removed and raise
+  `NotImplementedError` until they are ported.
 - The MLX solvers are tested against the CPU reference on defined
   synthetic cases. One acceptance test of the semi-free MLX solver
   (`test_mlx_semifree_batch.py::test_one_sided_objective_and_thickness[LLS]`,
