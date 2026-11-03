@@ -82,7 +82,7 @@ from .inverse_solver import (
     SemiFreeSolver,
     SemiFreeSolverConfig,
     SemiFreeSolverResult,
-    # Generic Layer Solver (汎用版、推奨)
+    # Generic Layer Solver (general version, recommended)
     LayerDefinition,
     GenericLayerConfig,
     GenericLayerResult,
@@ -173,31 +173,31 @@ def create_solver(
     **kwargs,
 ):
     """
-    ソルバーを作成するファクトリー関数（SemiFreeSolverがデフォルト）
+    Factory for solvers (SemiFreeSolver by default)
 
     Parameters
     ----------
     transfer_matrix : TransferMatrix
-        転送行列オブジェクト
+        Transfer-matrix object
     solver_type : str, optional
-        ソルバータイプ: 'semi-free' (default), 'free', 'layer-structure'
+        Solver type: 'semi-free' (default), 'free', 'layer-structure'
     method : str, optional
-        正則化手法: 'LLS' (default, 推奨), 'L2', 'L1', 'MEM'
+        Regularization method: 'LLS' (default, recommended), 'L2', 'L1', 'MEM'
     alpha : float, optional
-        正則化パラメータ (default: 0.0, LLSでは不使用)
+        Regularization parameter (default: 0.0, unused by LLS)
     **kwargs
-        ソルバー固有のパラメータ
+        Solver-specific parameters
 
         semi-free:
-            thickness_init : float - 初期膜厚推定 (default: 30.0)
-            abruptness_init : float - 初期界面幅 (default: 5.0)
-            free_indices : list - 自由最適化元素インデックス
-            linked_indices : list - 電荷保存元素インデックス
-            substrate_indices : list - 基板元素インデックス
+            thickness_init : float - initial thickness estimate (default: 30.0)
+            abruptness_init : float - initial interface width (default: 5.0)
+            free_indices : list - indices of the freely optimized elements
+            linked_indices : list - indices of the charge-conservation elements
+            substrate_indices : list - indices of the substrate elements
 
         generic-layer:
-            layer_config : GenericLayerConfig - 層構造設定
-            elements : list - 元素設定
+            layer_config : GenericLayerConfig - layer structure
+            elements : list - element configuration
 
     Returns
     -------
@@ -205,14 +205,14 @@ def create_solver(
 
     Examples
     --------
-    >>> # SemiFreeSolver (推奨、デフォルト)
+    >>> # SemiFreeSolver (recommended, default)
     >>> solver = create_solver(tm, free_indices=[0], linked_indices=[1], substrate_indices=[2])
     >>> result = solver.solve(I_obs)
 
-    >>> # FreeSolver (探索的解析)
+    >>> # FreeSolver (exploratory analysis)
     >>> solver = create_solver(tm, solver_type='free')
 
-    >>> # GenericLayerSolver (精密膜厚測定)
+    >>> # GenericLayerSolver (precise thickness measurement)
     >>> from deppro import GenericLayerConfig, LayerDefinition
     >>> layer_config = GenericLayerConfig(...)
     >>> solver = create_solver(tm, solver_type='generic-layer', layer_config=layer_config)
@@ -220,7 +220,7 @@ def create_solver(
     solver_config = SolverConfig(method=method, alpha=alpha)
 
     if solver_type == 'semi-free':
-        # SemiFreeSolver用パラメータ抽出
+        # Extract the SemiFreeSolver parameters
         semi_config = SemiFreeSolverConfig(
             thickness_init=kwargs.get('thickness_init', 30.0),
             abruptness_init=kwargs.get('abruptness_init', 5.0),
@@ -242,7 +242,7 @@ def create_solver(
         return FreeSolver(transfer_matrix, solver_config, D_prior, elements)
 
     elif solver_type == 'generic-layer':
-        # GenericLayerSolver用（layer_configを直接渡す）
+        # For GenericLayerSolver (layer_config is passed directly)
         layer_config = kwargs.get('layer_config')
         if layer_config is None:
             raise ValueError("layer_config is required for 'generic-layer' solver_type")
@@ -268,54 +268,54 @@ def solve_depth_profile(
     verbose: bool = False,
 ):
     """
-    深さプロファイル逆問題を解く（SemiFreeSolverをデフォルト使用）
+    Solve the depth-profile inverse problem (SemiFreeSolver by default)
 
-    一番シンプルなAPI。SemiFreeSolverを使って逆問題を解きます。
+    The simplest API. Solves the inverse problem with SemiFreeSolver.
 
     Parameters
     ----------
     I_obs : ndarray
-        観測強度 (n_angles, n_elements)
+        Observed intensities (n_angles, n_elements)
     transfer_matrix : TransferMatrix
-        転送行列オブジェクト
+        Transfer-matrix object
     elements : list[ElementConfig], optional
-        元素設定リスト
+        List of element configurations
     D_prior : ndarray, optional
-        事前分布 (n_depth, n_elements)
+        Prior distribution (n_depth, n_elements)
     free_indices : list[int], optional
-        自由最適化する元素のインデックス
+        Indices of the freely optimized elements
     linked_indices : list[int], optional
-        電荷保存で決まる元素のインデックス
+        Indices of the elements determined by charge conservation
     substrate_indices : list[int], optional
-        基板元素のインデックス
+        Indices of the substrate elements
     thickness_init : float, optional
-        初期膜厚推定 (default: 30.0 Å)
+        Initial thickness estimate (default: 30.0 Å)
     method : str, optional
-        正則化手法 (default: 'LLS', 推奨)
+        Regularization method (default: 'LLS', recommended)
     alpha : float, optional
-        正則化パラメータ (default: 0.0, LLSでは不使用)
+        Regularization parameter (default: 0.0, unused by LLS)
     verbose : bool, optional
-        詳細出力 (default: False)
+        Verbose output (default: False)
 
     Returns
     -------
     result : SemiFreeSolverResult
-        解析結果（D_opt, thickness, abruptness等を含む）
+        Analysis result (includes D_opt, thickness, abruptness and more)
 
     Examples
     --------
-    >>> # 最もシンプルな使い方
+    >>> # The simplest use
     >>> result = solve_depth_profile(
     ...     I_obs, tm,
     ...     free_indices=[0],      # Si_ox
-    ...     linked_indices=[1],    # O (電荷保存)
+    ...     linked_indices=[1],    # O (charge conservation)
     ...     substrate_indices=[2], # Si_bulk
     ... )
-    >>> print(f"膜厚: {result.thickness:.1f} Å")
+    >>> print(f"Thickness: {result.thickness:.1f} Å")
     """
     import numpy as np
 
-    # インデックスのデフォルト設定
+    # Default indices
     if free_indices is None:
         free_indices = []
     if linked_indices is None:
@@ -323,7 +323,7 @@ def solve_depth_profile(
     if substrate_indices is None:
         substrate_indices = []
 
-    # SemiFreeSolverの設定
+    # SemiFreeSolver settings
     semi_config = SemiFreeSolverConfig(
         thickness_init=thickness_init,
         abruptness_init=5.0,
@@ -331,7 +331,7 @@ def solve_depth_profile(
         linked_indices=linked_indices,
         substrate_indices=substrate_indices,
         optimize_thickness=True,
-        optimize_abruptness=False,  # 界面幅は固定推奨
+        optimize_abruptness=False,  # keep the interface width fixed (recommended)
     )
 
     solver_config = SolverConfig(method=method, alpha=alpha)
@@ -408,7 +408,7 @@ __all__ = [
     "SemiFreeSolver",
     "SemiFreeSolverConfig",
     "SemiFreeSolverResult",
-    # Generic Layer Solver (推奨)
+    # Generic Layer Solver (recommended)
     "LayerDefinition",
     "GenericLayerConfig",
     "GenericLayerResult",

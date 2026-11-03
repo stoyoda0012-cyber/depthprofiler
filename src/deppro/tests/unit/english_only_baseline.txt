@@ -3,12 +3,7 @@
 # same commit. Never add a line: new code and documents are written in English.
 # (Checked by src/deppro/tests/unit/test_repo_hygiene.py; the count is informative.)
 
-src/deppro/__init__.py    # 40 lines
-src/deppro/app/contract/metrics.py    # 43 lines
-src/deppro/app/contract/problem.py    # 38 lines
-src/deppro/app/contract/provenance.py    # 25 lines
 src/deppro/benchmark.py    # 76 lines
-src/deppro/examples/auto_substrate_detection.py    # 27 lines
 src/deppro/examples/theory/theory_comparison.py    # 64 lines
 src/deppro/examples/theory/xps_noise_summary.py    # 49 lines
 src/deppro/inverse_solver.py    # 129 lines
@@ -18,6 +13,4 @@ src/deppro/pipeline.py    # 99 lines
 src/deppro/producer/dataset.py    # 83 lines
 src/deppro/producer/gui_check.py    # 61 lines
 src/deppro/producer/gui_export.py    # 112 lines
-src/deppro/producer/profile.py    # 28 lines
-src/deppro/producer/scene.py    # 37 lines
 src/deppro/semifree_parametrization.py    # 58 lines
