@@ -42,7 +42,6 @@ src/deppro/semifree_parametrization.py    # 58 lines
 src/deppro/simulate/d2s2d.py    # 2 lines
 src/deppro/simulate/ood_generator.py    # 2 lines
 src/deppro/simulate/scene_kernel.py    # 8 lines
-src/deppro/structure_analyzer.py    # 240 lines
 src/deppro/tools/gt_vs_recon.py    # 86 lines
 src/deppro/tools/triptych.py    # 80 lines
 src/deppro/visualize_4d.py    # 2 lines
