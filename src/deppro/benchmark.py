@@ -2,24 +2,24 @@
 ARXPS Depth Profile Benchmark System
 =====================================
 
-GenericLayerSolver, SemiFreeSolver, FreeSolverの性能を一貫して評価する
-ベンチマークシステム。
+Benchmark system that evaluates GenericLayerSolver, SemiFreeSolver and FreeSolver
+consistently.
 
-機能:
-- 標準テストケースの定義と実行
-- 複数ソルバーの比較
-- 精度・ロバスト性・計算時間の評価
-- Markdown/HTML/JSONレポート生成
-- CI/CD統合用の出力
+Features:
+- definition and execution of standard test cases
+- comparison of several solvers
+- evaluation of accuracy, robustness and computation time
+- Markdown/HTML/JSON report generation
+- output for CI/CD integration
 
 Usage:
-    # フルベンチマーク実行
+    # Full benchmark
     python -m deppro.benchmark
 
-    # 特定ソルバーのみ
+    # Specific solvers only
     python -m deppro.benchmark --solver GenericLayerSolver
 
-    # レポート生成
+    # Report generation
     python -m deppro.benchmark --output report.md --format markdown
 """
 
@@ -52,7 +52,7 @@ from .inverse_solver import (
 # =============================================================================
 
 class TestCaseType(Enum):
-    """テストケースタイプ"""
+    """Test-case type"""
     SIO2_SI = "SiO2/Si"
     MULTILAYER_4 = "C/Al2O3/TiO2/SiO2/Si"
     THIN_FILM = "ThinFilm"
@@ -61,7 +61,7 @@ class TestCaseType(Enum):
 
 @dataclass
 class TestCase:
-    """ベンチマーク用テストケース"""
+    """Benchmark test case"""
     name: str
     case_type: TestCaseType
     layer_names: List[str]
@@ -71,16 +71,16 @@ class TestCase:
     tags: List[str] = field(default_factory=list)
 
 
-# 標準テストケース定義
+# Standard test cases
 STANDARD_TEST_CASES = [
-    # SiO2/Si 単層系
+    # SiO2/Si single layer
     TestCase(
         name="SiO2_10A",
         case_type=TestCaseType.SIO2_SI,
         layer_names=["SiO2"],
         true_thicknesses=[10.0],
         interface_widths=[5.0],
-        description="薄いSiO2膜（10Å）",
+        description="thin SiO2 film (10 Å)",
         tags=["thin", "single-layer", "oxide"],
     ),
     TestCase(
@@ -89,7 +89,7 @@ STANDARD_TEST_CASES = [
         layer_names=["SiO2"],
         true_thicknesses=[30.0],
         interface_widths=[5.0],
-        description="標準SiO2膜（30Å）",
+        description="standard SiO2 film (30 Å)",
         tags=["standard", "single-layer", "oxide"],
     ),
     TestCase(
@@ -98,17 +98,17 @@ STANDARD_TEST_CASES = [
         layer_names=["SiO2"],
         true_thicknesses=[80.0],
         interface_widths=[5.0],
-        description="厚いSiO2膜（80Å）",
+        description="thick SiO2 film (80 Å)",
         tags=["thick", "single-layer", "oxide"],
     ),
-    # 多層膜系
+    # Multilayers
     TestCase(
         name="Multilayer_Standard",
         case_type=TestCaseType.MULTILAYER_4,
         layer_names=["C", "Al2O3", "TiO2", "SiO2"],
         true_thicknesses=[5.0, 15.0, 35.0, 30.0],
         interface_widths=[2.0, 3.0, 4.0, 5.0],
-        description="標準4層膜（C/Al2O3/TiO2/SiO2/Si）",
+        description="standard 4-layer film (C/Al2O3/TiO2/SiO2/Si)",
         tags=["multilayer", "standard"],
     ),
     TestCase(
@@ -117,7 +117,7 @@ STANDARD_TEST_CASES = [
         layer_names=["C", "Al2O3", "TiO2", "SiO2"],
         true_thicknesses=[3.0, 8.0, 15.0, 10.0],
         interface_widths=[2.0, 2.0, 3.0, 3.0],
-        description="薄い4層膜",
+        description="thin 4-layer film",
         tags=["multilayer", "thin"],
     ),
 ]
@@ -125,7 +125,7 @@ STANDARD_TEST_CASES = [
 
 @dataclass
 class BenchmarkCondition:
-    """ベンチマーク条件"""
+    """Benchmark conditions"""
     noise_level: float = 0.02
     initial_offset: float = 5.0
     n_trials: int = 30
@@ -139,7 +139,7 @@ class BenchmarkCondition:
 
 @dataclass
 class SingleTrialResult:
-    """単一試行の結果"""
+    """Result of one trial"""
     estimated_thicknesses: List[float]
     thickness_errors: List[float]
     abs_errors: List[float]
@@ -150,13 +150,13 @@ class SingleTrialResult:
 
 @dataclass
 class TestCaseResult:
-    """テストケースの結果"""
+    """Result of a test case"""
     test_case: TestCase
     solver_name: str
     condition: BenchmarkCondition
     trials: List[SingleTrialResult]
 
-    # 集計統計
+    # Aggregate statistics
     mean_errors: Optional[List[float]] = None
     std_errors: Optional[List[float]] = None
     mean_abs_errors: Optional[List[float]] = None
@@ -164,7 +164,7 @@ class TestCaseResult:
     mean_time: Optional[float] = None
 
     def compute_statistics(self):
-        """統計量を計算"""
+        """Compute the statistics"""
         if not self.trials:
             return
 
@@ -183,14 +183,14 @@ class TestCaseResult:
 
 @dataclass
 class BenchmarkReport:
-    """ベンチマークレポート"""
+    """Benchmark report"""
     timestamp: str
     version: str
     results: List[TestCaseResult]
     summary: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
-        """辞書に変換"""
+        """Convert to a dict"""
         return {
             "timestamp": self.timestamp,
             "version": self.version,
@@ -215,7 +215,7 @@ class BenchmarkReport:
 # =============================================================================
 
 class BenchmarkRunner:
-    """ベンチマーク実行クラス"""
+    """Benchmark runner"""
 
     def __init__(
         self,
@@ -234,7 +234,7 @@ class BenchmarkRunner:
         self.results: List[TestCaseResult] = []
 
     def run(self, verbose: bool = True) -> BenchmarkReport:
-        """ベンチマーク実行"""
+        """Run the benchmark"""
         if verbose:
             print("=" * 70)
             print("ARXPS Depth Profile Benchmark")
@@ -262,7 +262,7 @@ class BenchmarkRunner:
                     if verbose:
                         self._print_result_summary(result)
 
-        # レポート生成
+        # Report generation
         report = BenchmarkReport(
             timestamp=datetime.now().isoformat(),
             version="1.0.0",
@@ -278,25 +278,25 @@ class BenchmarkRunner:
         condition: BenchmarkCondition,
         solver_name: str,
     ) -> TestCaseResult:
-        """単一ベンチマーク実行"""
+        """Run one benchmark"""
         trials = []
 
         for trial_idx in range(condition.n_trials):
             seed = condition.seed_base + trial_idx
             np.random.seed(seed)
 
-            # データ生成
+            # Data generation
             I_obs, tm, true_thicknesses = self._generate_data(
                 test_case, condition, seed
             )
 
-            # 初期値生成
+            # Initial values
             offsets = condition.initial_offset * (2 * np.random.rand(len(true_thicknesses)) - 1)
             initial_thicknesses = [
                 max(1.0, t + o) for t, o in zip(true_thicknesses, offsets)
             ]
 
-            # ソルバー実行
+            # Run the solver
             try:
                 result = self._run_solver(
                     solver_name, test_case, tm, I_obs,
@@ -341,7 +341,7 @@ class BenchmarkRunner:
         condition: BenchmarkCondition,
         seed: int,
     ) -> Tuple[np.ndarray, TransferMatrix, List[float]]:
-        """テストデータ生成"""
+        """Generate test data"""
         from scipy.special import erf
 
         if test_case.case_type == TestCaseType.SIO2_SI:
@@ -357,33 +357,33 @@ class BenchmarkRunner:
         condition: BenchmarkCondition,
         seed: int,
     ) -> Tuple[np.ndarray, TransferMatrix, List[float]]:
-        """SiO2/Siデータ生成"""
+        """Generate SiO2/Si data"""
         from scipy.special import erf
 
         thickness = test_case.true_thicknesses[0]
         width = test_case.interface_widths[0]
 
-        # 深さグリッド
+        # Depth grid
         depth = np.arange(0, 150, 1.0)
         n_depth = len(depth)
 
-        # プロファイル生成
+        # Profile
         sigma = width / (2 * np.sqrt(np.log(2)))
         D = np.zeros((n_depth, 3))  # Si_ox, O, Si_bulk
 
-        # SiO2層
+        # SiO2 layer
         sio2_profile = 1 - 0.5 * (1 + erf((depth - thickness) / sigma))
         D[:, 0] = (1/3) * sio2_profile  # Si_ox
         D[:, 1] = (2/3) * sio2_profile  # O
 
-        # Si基板
+        # Si substrate
         D[:, 2] = 0.5 * (1 + erf((depth - thickness) / sigma))
 
-        # 正規化
+        # Normalize
         D = np.clip(D, 1e-6, None)
         D = D / D.sum(axis=1, keepdims=True)
 
-        # 元素情報（簡易版）
+        # Element information (simplified)
         from .depth_profile import ElementConfig
         elements = [
             ElementConfig('Si', '2p', 'SiO2', oxidation_state=4),
@@ -391,7 +391,7 @@ class BenchmarkRunner:
             ElementConfig('Si', '2p', 'Si', oxidation_state=0),
         ]
 
-        # 転送行列
+        # Transfer matrix
         tm = TransferMatrix(
             depth=depth,
             step_size=1.0,
@@ -400,10 +400,10 @@ class BenchmarkRunner:
         )
         tm.compute(D, elements)
 
-        # 観測データ
+        # Observed data
         I_true = tm.forward(D, normalize=True)
 
-        # ノイズ追加
+        # Add noise
         np.random.seed(seed)
         if condition.noise_level > 0:
             noise = condition.noise_level * np.random.randn(*I_true.shape)
@@ -421,17 +421,17 @@ class BenchmarkRunner:
         condition: BenchmarkCondition,
         seed: int,
     ) -> Tuple[np.ndarray, TransferMatrix, List[float]]:
-        """多層膜データ生成"""
+        """Generate multilayer data"""
         from scipy.special import erf
 
         thicknesses = test_case.true_thicknesses
         widths = test_case.interface_widths
 
-        # 深さグリッド
+        # Depth grid
         depth = np.arange(0, 150, 1.0)
         n_depth = len(depth)
 
-        # GenericLayerSolverと一致するモデルでプロファイル生成
+        # Profile from the same model as GenericLayerSolver
         D = np.zeros((n_depth, 6))  # C, Al, Ti, Si_ox, O, Si_bulk
 
         cumulative = np.cumsum(thicknesses)
@@ -439,7 +439,7 @@ class BenchmarkRunner:
 
         layer_profiles = []
 
-        # 各層のプロファイル
+        # Profile of each layer
         for i in range(4):
             z_start = 0 if i == 0 else cumulative[i - 1]
             z_end = cumulative[i]
@@ -451,23 +451,23 @@ class BenchmarkRunner:
             profile = np.maximum(rising - falling, 0)
             layer_profiles.append(profile)
 
-        # 元素濃度設定
+        # Element concentrations
         D[:, 0] = layer_profiles[0]  # C
         D[:, 1] = (2/5) * layer_profiles[1]  # Al (Al2O3: Al:O = 2:3)
         D[:, 2] = (1/3) * layer_profiles[2]  # Ti (TiO2: Ti:O = 1:2)
         D[:, 3] = (1/3) * layer_profiles[3]  # Si_ox (SiO2: Si:O = 1:2)
         D[:, 4] = (3/5) * layer_profiles[1] + (2/3) * layer_profiles[2] + (2/3) * layer_profiles[3]  # O
 
-        # Si基板
+        # Si substrate
         z_sub = cumulative[-1]
         sigma_sub = sigmas[-1]
         D[:, 5] = 0.5 * (1 + erf((depth - z_sub) / sigma_sub))
 
-        # 正規化
+        # Normalize
         D = np.clip(D, 1e-6, None)
         D = D / D.sum(axis=1, keepdims=True)
 
-        # 元素情報
+        # Element information
         from .depth_profile import ElementConfig
         elements = [
             ElementConfig('C', '1s', 'C', oxidation_state=0),
@@ -478,7 +478,7 @@ class BenchmarkRunner:
             ElementConfig('Si', '2p', 'Si', oxidation_state=0),
         ]
 
-        # 転送行列
+        # Transfer matrix
         tm = TransferMatrix(
             depth=depth,
             step_size=1.0,
@@ -487,10 +487,10 @@ class BenchmarkRunner:
         )
         tm.compute(D, elements)
 
-        # 観測データ
+        # Observed data
         I_true = tm.forward(D, normalize=True)
 
-        # ノイズ追加
+        # Add noise
         np.random.seed(seed)
         if condition.noise_level > 0:
             noise = condition.noise_level * np.random.randn(*I_true.shape)
@@ -511,7 +511,7 @@ class BenchmarkRunner:
         initial_thicknesses: List[float],
         interface_widths: List[float],
     ):
-        """ソルバー実行"""
+        """Run the solver"""
         if solver_name == "GenericLayerSolver":
             return self._run_generic_layer_solver(
                 test_case, tm, I_obs, initial_thicknesses, interface_widths
@@ -531,7 +531,7 @@ class BenchmarkRunner:
         initial_thicknesses: List[float],
         interface_widths: List[float],
     ):
-        """GenericLayerSolver実行"""
+        """Run GenericLayerSolver"""
         if test_case.case_type == TestCaseType.SIO2_SI:
             config = GenericLayerConfig(
                 layers=[
@@ -577,7 +577,7 @@ class BenchmarkRunner:
         initial_thicknesses: List[float],
         interface_widths: List[float],
     ):
-        """SemiFreeSolver実行（SiO2/Siのみ対応）"""
+        """Run SemiFreeSolver (SiO2/Si only)"""
         if test_case.case_type != TestCaseType.SIO2_SI:
             raise ValueError("SemiFreeSolver only supports SiO2/Si test cases")
 
@@ -592,7 +592,7 @@ class BenchmarkRunner:
         solver = SemiFreeSolver(tm, SolverConfig(method='LLS'), config)
         result = solver.solve(I_obs)
 
-        # GenericLayerResultと同じ形式に変換
+        # Convert to the same form as GenericLayerResult
         class CompatibleResult:
             def __init__(self, semi_result):
                 self.layer_thicknesses = [semi_result.thickness]
@@ -603,13 +603,13 @@ class BenchmarkRunner:
         return CompatibleResult(result)
 
     def _print_result_summary(self, result: TestCaseResult):
-        """結果サマリー表示"""
+        """Print the result summary"""
         print(f"  -> |Error|: {[f'{e:.2f}Å' for e in result.mean_abs_errors]}, "
               f"Success: {result.success_rate*100:.0f}%, "
               f"Time: {result.mean_time*1000:.1f}ms")
 
     def _compute_summary(self) -> Dict:
-        """全体サマリー計算"""
+        """Compute the overall summary"""
         summary = {
             "total_test_cases": len(self.test_cases),
             "total_conditions": len(self.conditions),
@@ -617,7 +617,7 @@ class BenchmarkRunner:
             "overall_success_rate": np.mean([r.success_rate for r in self.results]),
         }
 
-        # ソルバー別サマリー
+        # Summary per solver
         for solver in self.solvers:
             solver_results = [r for r in self.results if r.solver_name == solver]
             if solver_results:
@@ -634,11 +634,11 @@ class BenchmarkRunner:
 # =============================================================================
 
 class ReportGenerator:
-    """レポート生成クラス"""
+    """Report generator"""
 
     @staticmethod
     def to_markdown(report: BenchmarkReport) -> str:
-        """Markdownレポート生成"""
+        """Generate the Markdown report"""
         lines = [
             "# ARXPS Depth Profile Benchmark Report",
             "",
@@ -654,7 +654,7 @@ class ReportGenerator:
             "",
         ]
 
-        # テストケース別に整理
+        # Organize by test case
         test_case_names = list(set(r.test_case.name for r in report.results))
 
         for tc_name in test_case_names:
@@ -670,7 +670,7 @@ class ReportGenerator:
             lines.append(f"**Interface widths**: {tc.interface_widths} Å")
             lines.append("")
 
-            # テーブル作成
+            # Table
             headers = ["Noise", "Offset"] + tc.layer_names + ["Success", "Time"]
             lines.append("| " + " | ".join(headers) + " |")
             lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
@@ -691,12 +691,12 @@ class ReportGenerator:
 
     @staticmethod
     def to_json(report: BenchmarkReport) -> str:
-        """JSONレポート生成"""
+        """Generate the JSON report"""
         return json.dumps(report.to_dict(), indent=2)
 
     @staticmethod
     def to_ci_summary(report: BenchmarkReport) -> Dict:
-        """CI/CD用サマリー生成"""
+        """Generate the CI/CD summary"""
         return {
             "status": "pass" if report.summary.get("overall_success_rate", 0) > 0.95 else "fail",
             "success_rate": report.summary.get("overall_success_rate", 0),
@@ -713,7 +713,7 @@ class ReportGenerator:
 # =============================================================================
 
 def main():
-    """メイン実行"""
+    """Main"""
     import argparse
 
     parser = argparse.ArgumentParser(description="ARXPS Benchmark System")
@@ -729,22 +729,22 @@ def main():
 
     args = parser.parse_args()
 
-    # 条件設定
+    # Conditions
     if args.quick:
         conditions = [
             BenchmarkCondition(noise_level=0.02, initial_offset=5.0, n_trials=5),
         ]
     else:
-        conditions = None  # デフォルト
+        conditions = None  # default
 
-    # ベンチマーク実行
+    # Run the benchmark
     runner = BenchmarkRunner(
         solvers=[args.solver],
         conditions=conditions,
     )
     report = runner.run(verbose=True)
 
-    # レポート生成
+    # Report generation
     if args.format == "markdown":
         output = ReportGenerator.to_markdown(report)
     elif args.format == "json":
@@ -752,7 +752,7 @@ def main():
     else:
         output = json.dumps(ReportGenerator.to_ci_summary(report), indent=2)
 
-    # 出力
+    # Output
     if args.output:
         Path(args.output).write_text(output)
         print(f"\nReport saved to: {args.output}")
