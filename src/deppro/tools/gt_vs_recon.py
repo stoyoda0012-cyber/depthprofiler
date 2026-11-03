@@ -1,62 +1,62 @@
-"""真値と再構成を並べる 2x2 図（GT vs reconstruction）。
+"""Ground truth and reconstruction side by side in a 2x2 figure (GT vs reconstruction).
 
-なぜ要るか
+Why
 ----------
-再構成の 3D 等値面を単独で眺めても良し悪しは読めない。真値（合成データ）
-と**同じ視点・同じクロップ・同じ配色**で横に並べ、その下に (x, y) 平均の
-深さプロファイルを添えて初めて、層位置のずれと濃度のずれが見分けられる。
-その並べ方を毎回書き直さないための薄い合成層で、描画そのものは
-:mod:`deppro.visualize_4d`（``MatlabIsosurfaceRenderer``）、視点・クロップの
-規約は :mod:`deppro.tools.triptych` のものをそのまま使う。
+A reconstructed 3D isosurface on its own does not show whether it is good. Only
+next to the ground truth (synthetic data) **from the same viewpoint, with the same
+crop and the same colors**, with the (x, y)-averaged depth profiles underneath, can
+a shift in layer position be told from an error in concentration. This is a thin
+composition layer so that arrangement is not rewritten each time: rendering is
+:mod:`deppro.visualize_4d` (``MatlabIsosurfaceRenderer``), and the view and crop conventions are those of :mod:`deppro.tools.triptych`.
 
-配置（1 フレーム 1 図、複数フレームなら mp4）::
+Layout (one figure per frame; an mp4 for several frames)::
 
     +---------------------------+---------------------------+
     |  3D ground truth          |  3D reconstruction        |
     +---------------------------+---------------------------+
-    |  GT の (x,y) 平均プロファイル |  再構成の (x,y) 平均プロファイル |
-    |  conc (%) vs depth (Å)    |  同じ元素色               |
+    |  GT (x,y)-mean profile    |  reconstruction (x,y)-mean |
+    |  conc (%) vs depth (Å)    |  same element colors      |
     +---------------------------+---------------------------+
-    見出し: <title> — frame t/nt | RMSE x.xx % | W1 median-px x.x Å
+    heading: <title> — frame t/nt | RMSE x.xx % | W1 median-px x.x Å
 
-指標は公開済みの定義だけを使う: RMSE[%] は
-:func:`deppro.tools.triptych.rmse_percent`（全画素・全深さ・全元素）、
-W1[Å] は :func:`deppro.depth_profile.wasserstein_distance_1d` を画素×元素ごとに
-取り、真値が空の画素は NaN、画素方向の中央値を元素で平均したもの。
-膜厚線は描かない（膜厚推定は配布物に含まれない ``benchmarks`` 側にある）。
+Only published metric definitions are used: RMSE [%] is
+:func:`deppro.tools.triptych.rmse_percent` (all pixels, depths and elements), and
+W1 [Å] is :func:`deppro.depth_profile.wasserstein_distance_1d` per pixel and
+element, NaN where the ground truth is empty, median over pixels, mean over elements.
+No thickness line is drawn (the thickness estimator lives in ``benchmarks``, which is not shipped).
 
-入力
+Input
 ----
-真値は ``/Dstk`` を持つ H5（MATLAB 生成、または
-:class:`deppro.simulate.writer.H5Writer` の出力）、再構成は
-:func:`deppro.app.write_depth_estimate` が書く ``/D_est/data`` の H5。
-:func:`load_profile` はどちらの dialect かをファイルから判別する。両者は
-grid（nx, ny, nt）・深さ軸・元素名（順序まで）が一致していなければならず、
-違えば :func:`check_compatible` が何が違うかを挙げて拒否する。
+The ground truth is an H5 with ``/Dstk`` (MATLAB-generated, or written by
+:class:`deppro.simulate.writer.H5Writer`); the reconstruction is an H5 with
+``/D_est/data`` as written by :func:`deppro.app.write_depth_estimate`.
+:func:`load_profile` tells the two dialects apart from the file. The two must
+agree in grid (nx, ny, nt), depth axis and element names (including order);
+otherwise :func:`check_compatible` lists what differs and refuses.
 
-使い方
+Usage
 ------
-ライブラリとして::
+As a library::
 
     from deppro.tools.gt_vs_recon import load_profile, render_gt_vs_recon
     gt = load_profile("gt.h5")
     recon = load_profile("depth_est_NN_20260101_000000.h5")
     render_gt_vs_recon(gt, recon, output="gt_vs_nn.mp4")
 
-コマンドラインから::
+From the command line::
 
     python -m deppro.tools.gt_vs_recon --gt gt.h5 --recon depth_est_NN.h5 \\
         --label "NN surrogate" --title "Checkered 3x2" -o gt_vs_nn.mp4
-    python -m deppro.tools.gt_vs_recon --gt gt.h5 --recon est.h5 --frame 0   # PNG 1 枚
+    python -m deppro.tools.gt_vs_recon --gt gt.h5 --recon est.h5 --frame 0   # one PNG
 
-出力は絶対パスならその場所、相対パスなら
-``deppro.paths.ensure_outputs_dir("gt_vs_recon")`` の下。描画には pyvista と
-imageio（動画は imageio-ffmpeg）が要り、無ければ使う時点で ImportError。
-指標の計算と入力の検査は描画ライブラリ無しで動く。
+An absolute output path is used as given; a relative one goes under
+``deppro.paths.ensure_outputs_dir("gt_vs_recon")``. Rendering needs pyvista and
+imageio (imageio-ffmpeg for video); without them an ImportError is raised at the point of use.
+The metrics and the input checks work without the rendering libraries.
 
-ヘッドレスのソフトウェア OpenGL（Xvfb + llvmpipe）では、レンダラの depth
-peeling が面をすべて落として真っ白な図になる。その環境では
-``--no-depth-peeling``（``GtVsReconConfig(depth_peeling=False)``）を付ける。
+Under headless software OpenGL (Xvfb + llvmpipe) the renderer's depth peeling
+drops every face and the figure comes out blank. In that environment pass
+``--no-depth-peeling`` (``GtVsReconConfig(depth_peeling=False)``).
 """
 
 from __future__ import annotations
@@ -99,22 +99,22 @@ __all__ = [
 
 @dataclass
 class GtVsReconConfig(TriptychConfig):
-    """2x2 図の見た目。3D パネルの既定は triptych（EzDeP4D の本番動画）と同じ。"""
+    """Appearance of the 2x2 figure. The 3D panel defaults are those of the triptych (production EzDeP4D videos)."""
 
     gt_label: str = "Ground truth"
     recon_label: str = "Reconstruction"
-    profile_row: bool = True       # 下段のプロファイルを描く
-    show_metrics: bool = True      # 見出しに RMSE / W1 を出す
-    profile_row_ratio: float = 0.55  # 下段の高さ（3D パネル高さに対する比）
-    fig_width_in: float = 8.4      # 2 枚なので triptych より狭い
-    # 半透明面の順序を depth peeling で解く（MATLAB の SortMethod='depth' 相当）。
-    # ソフトウェア OpenGL（llvmpipe 等、ヘッドレス CI）では peeling が面を
-    # すべて落として真っ白になるので、そこでは False にする（面は不透明に描かれる）。
+    profile_row: bool = True       # draw the profile row
+    show_metrics: bool = True      # show RMSE / W1 in the heading
+    profile_row_ratio: float = 0.55  # height of the profile row relative to the 3D panels
+    fig_width_in: float = 8.4      # two panels, so narrower than the triptych
+    # Resolve translucent faces with depth peeling (MATLAB's SortMethod='depth').
+    # Under software OpenGL (llvmpipe and the like, headless CI) peeling drops every
+    # face and leaves the panel blank, so set this to False there (faces are drawn opaque).
     depth_peeling: bool = True
 
 
 # ---------------------------------------------------------------------------
-# 入力
+# Input
 # ---------------------------------------------------------------------------
 
 
@@ -126,11 +126,11 @@ def load_profile(
     color_source: str = "auto",
     palette: Optional[Dict[str, List[float]]] = None,
 ) -> DepthProfile4DData:
-    """H5 の dialect を見て真値ローダか推定ローダかを選んで読む。
+    """Pick the ground-truth or the estimate loader from the dialect of the H5 and read it.
 
-    ``/D_est/data`` があれば :func:`deppro.visualize_4d.load_depth_estimate`、
-    無くて ``/Dstk`` があれば :func:`deppro.visualize_4d.load_gt_4d`。
-    どちらも無ければ ``ValueError``。
+    With ``/D_est/data``, :func:`deppro.visualize_4d.load_depth_estimate`; otherwise
+    with ``/Dstk``, :func:`deppro.visualize_4d.load_gt_4d`.
+    With neither, ``ValueError``.
     """
     import h5py
 
@@ -152,10 +152,10 @@ def load_profile(
 
 
 def check_compatible(gt: DepthProfile4DData, recon: DepthProfile4DData) -> None:
-    """真値と再構成が同じ grid・深さ軸・元素列であることを確かめる。
+    """Check that ground truth and reconstruction share the grid, the depth axis and the element list.
 
-    並べて比較する前提そのものなので、違えば何が違うかをすべて挙げて
-    ``ValueError`` にする（最初の不一致で止めない）。
+    This is the premise of a side-by-side comparison, so every difference is listed
+    and raised as ``ValueError`` (not only the first).
     """
     problems = []
     if (gt.nx, gt.ny, gt.nt) != (recon.nx, recon.ny, recon.nt):
@@ -181,27 +181,27 @@ def check_compatible(gt: DepthProfile4DData, recon: DepthProfile4DData) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 指標・プロファイル（描画ライブラリ不要）
+# Metrics and profiles (no rendering library needed)
 # ---------------------------------------------------------------------------
 
 
 def mean_profile(data: DepthProfile4DData, t: int) -> np.ndarray:
-    """フレーム *t* の (x, y) 平均プロファイル、濃度 % で ``(n_depth, n_elem)``。"""
+    """(x, y)-mean profile of frame *t* in concentration %, shape ``(n_depth, n_elem)``."""
     frame = np.asarray(data.get_frame(t), dtype=np.float64)   # (nx, ny, n_depth, n_elem)
     return frame.mean(axis=(0, 1)) * 100.0
 
 
 def frame_metrics(gt: DepthProfile4DData, recon: DepthProfile4DData, t: int) -> Dict[str, float]:
-    """フレーム *t* の指標。
+    """Metrics of frame *t*.
 
     Returns
     -------
     dict
         ``rmse_percent``: :func:`deppro.tools.triptych.rmse_percent`。
-        ``w1_median_px_A``: 画素×元素ごとの
-        :func:`deppro.depth_profile.wasserstein_distance_1d`（真値が空の画素は
-        NaN）を画素方向に中央値、元素で平均した Å。全元素が NaN なら NaN。
-        ``w1_per_element_A``: 元素ごとの画素中央値（``n_elem`` 長の配列）。
+        ``w1_median_px_A``: :func:`deppro.depth_profile.wasserstein_distance_1d`
+        per pixel and element (NaN where the ground truth is empty), median over
+        pixels, mean over elements, in Å. NaN if every element is NaN.
+        ``w1_per_element_A``: the per-pixel median of each element (array of length ``n_elem``).
     """
     G = np.asarray(gt.get_frame(t), dtype=np.float64).reshape(-1, gt.n_depth, gt.n_elem)
     D = np.asarray(recon.get_frame(t), dtype=np.float64).reshape(-1, recon.n_depth, recon.n_elem)
@@ -224,7 +224,7 @@ def frame_metrics(gt: DepthProfile4DData, recon: DepthProfile4DData, t: int) -> 
 
 
 # ---------------------------------------------------------------------------
-# 描画
+# Rendering
 # ---------------------------------------------------------------------------
 
 
@@ -246,26 +246,26 @@ def render_gt_vs_recon(
     output: Optional[str] = None,
     frames: Optional[Sequence[int]] = None,
 ) -> Path:
-    """真値と再構成を 2x2 に並べ、動画（複数フレーム）か PNG（1 フレーム）を書く。
+    """Put ground truth and reconstruction in a 2x2 figure and write a video (several frames) or a PNG (one frame).
 
     Parameters
     ----------
     gt, recon
-        :func:`load_profile` で読んだもの。:func:`check_compatible` を通ること。
+        As read by :func:`load_profile`; must pass :func:`check_compatible`.
     config
-        見た目。既定は triptych と同じ視点・照明オフ。
+        Appearance. The default is the triptych view with lighting off.
     output
-        出力ファイル名。絶対パスはそのまま、相対パスは
-        ``ensure_outputs_dir("gt_vs_recon")`` の下。既定 ``gt_vs_recon.mp4`` /
-        1 フレームなら ``gt_vs_recon.png``。動画のときは先頭フレームの
-        PNG（poster）を同名 ``.png`` で添える。
+        Output file name. An absolute path is used as given; a relative one goes under
+        ``ensure_outputs_dir("gt_vs_recon")``. Defaults to ``gt_vs_recon.mp4``, or
+        ``gt_vs_recon.png`` for one frame. For a video, the first frame is also written
+        as a poster PNG with the same stem.
     frames
-        描くフレーム番号。既定は全フレーム。
+        Frame numbers to draw. Defaults to every frame.
 
     Returns
     -------
     Path
-        書き出した動画または PNG。
+        The written video or PNG.
     """
     if not HAS_PYVISTA:
         raise ImportError("PyVista required: pip install pyvista")
@@ -299,14 +299,14 @@ def render_gt_vs_recon(
         crop, touches_edge = _common_crop(pairs, gt.nt, cfg.panel_px, cfg.crop_pad)
         if touches_edge:
             print(
-                "warning: 立方体がパネル端に接している。camera_zoom を下げるか "
-                "crop_pad を減らすと切れなくなる"
+                "warning: the cube touches the panel edge. Lower camera_zoom or "
+                "reduce crop_pad to stop it being cut off"
             )
         ch = crop[0].stop - crop[0].start
         cw = crop[1].stop - crop[1].start
 
-        # 上段は共通クロップの縦横比、下段はその profile_row_ratio 倍の高さ。
-        # 左余白は下段の目盛と軸ラベルの分（上段だけなら 0.02 で足りる）
+        # The top row keeps the aspect ratio of the common crop; the bottom row is profile_row_ratio times its height.
+        # The left margin makes room for the ticks and axis label of the profile row (0.02 is enough without it)
         lo, hi, top, bot = (0.075 if cfg.profile_row else 0.02), 0.985, 0.90, 0.09
         slot_w = cfg.fig_width_in * (hi - lo) / (2 + cfg.panel_gap)
         img_h = slot_w * ch / cw
@@ -414,35 +414,35 @@ def render_gt_vs_recon(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="真値と再構成を 2x2 に並べる（3D 等値面 + (x,y) 平均プロファイル）",
+        description="Ground truth and reconstruction side by side in 2x2 (3D isosurfaces + (x,y)-mean profiles)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__.split("使い方")[-1],
+        epilog=__doc__.split("Usage")[-1],
     )
-    parser.add_argument("--gt", required=True, help="真値の H5（/Dstk）")
+    parser.add_argument("--gt", required=True, help="ground-truth H5 (/Dstk)")
     parser.add_argument("--recon", required=True,
-                        help="再構成の H5（/D_est/data、または /Dstk dialect）")
-    parser.add_argument("--label", default="Reconstruction", help="右パネルの見出し")
-    parser.add_argument("--gt-label", default="Ground truth", help="左パネルの見出し")
+                        help="reconstruction H5 (/D_est/data, or the /Dstk dialect)")
+    parser.add_argument("--label", default="Reconstruction", help="heading of the right panel")
+    parser.add_argument("--gt-label", default="Ground truth", help="heading of the left panel")
     parser.add_argument("-o", "--output", default=None,
-                        help="出力ファイル名（絶対パスはそのまま、相対は outputs/gt_vs_recon/ の下）")
-    parser.add_argument("--frame", type=int, default=None, help="このフレームだけ PNG で書く")
+                        help="output file name (absolute as given; relative under outputs/gt_vs_recon/)")
+    parser.add_argument("--frame", type=int, default=None, help="write only this frame, as a PNG")
     parser.add_argument("--max-frames", type=int, default=None)
     parser.add_argument("--title", default="")
-    parser.add_argument("--nx", type=int, default=None, help="dxdydt を上書きする grid")
+    parser.add_argument("--nx", type=int, default=None, help="grid override for dxdydt")
     parser.add_argument("--ny", type=int, default=None)
     parser.add_argument("--hide", nargs="*", type=int, default=[],
-                        help="3D パネルで隠す元素の 0 始まり index")
-    parser.add_argument("--no-metrics", action="store_true", help="見出しの RMSE / W1 を出さない")
-    parser.add_argument("--no-profile", action="store_true", help="下段のプロファイルを描かない")
+                        help="0-based indices of elements to hide in the 3D panels")
+    parser.add_argument("--no-metrics", action="store_true", help="do not show RMSE / W1 in the heading")
+    parser.add_argument("--no-profile", action="store_true", help="do not draw the profile row")
     parser.add_argument("--elevation", type=float, default=None)
     parser.add_argument("--azimuth", type=float, default=None)
     parser.add_argument("--zoom", type=float, default=None)
     parser.add_argument("--crop-pad", type=int, default=None)
     parser.add_argument("--lighting", action="store_true",
-                        help="陰影をつける（MATLAB の 3D Lighting on 相当）")
+                        help="add shading (MATLAB's 3D Lighting on)")
     parser.add_argument("--fps", type=int, default=None)
     parser.add_argument("--no-depth-peeling", action="store_true",
-                        help="半透明面の depth peeling を切る（ソフトウェア OpenGL では必要）")
+                        help="turn off depth peeling of translucent faces (needed under software OpenGL)")
     return parser
 
 
