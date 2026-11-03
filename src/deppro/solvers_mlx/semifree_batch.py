@@ -90,7 +90,7 @@ class SemiFreeBatchConfig:
     # estimate no longer depends on batch position, chunk membership, or
     # the global RNG stream.  Also replaces the batch-global L floor
     # (1e-12 * max over the chunk) with a per-pixel absolute floor.
-    # Default False keeps the earlier behaviour bit-for-bit.
+    # Default False keeps the earlier behavior bit-for-bit.
     deterministic_power_init: bool = False
     power_init_seed: int = 0
     # t-block (batched solve_alternating equivalent: every candidate t is

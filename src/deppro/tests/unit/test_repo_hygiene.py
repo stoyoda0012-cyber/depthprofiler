@@ -287,3 +287,101 @@ def test_no_test_files_inside_shipped_packages():
         if not _is_excluded(".".join(rel.parts[:-1]), exclude):
             offenders.append(str(path.relative_to(_repo_root())))
     assert not offenders, "配布対象パッケージ内の test_*.py（tests/ へ移す）: " + ", ".join(offenders)
+
+
+# ============================================================================
+# 3. English-only ratchet for shipped code and public documents
+# ============================================================================
+#
+# Public material (README, CITATION, CHANGELOG, pyproject, docs/, and every
+# module that ships in the wheel) is being moved to English, one file per
+# commit. The baseline file next to this test lists the files that still
+# contain Japanese. The two tests below make the list shrink only:
+#
+#   * a file outside the baseline must contain no Japanese (new code and new
+#     documents are written in English; a translated file is removed from the
+#     baseline in the same commit);
+#   * a baseline entry must still exist and still contain Japanese, so the
+#     list cannot go stale and silently stop protecting a translated file.
+#
+# Test files are not shipped and are not in scope, and docs/ja/ (Japanese
+# translations of the English originals) is excluded by design.
+
+_ENGLISH_ONLY_BASELINE = Path(__file__).with_name("english_only_baseline.txt")
+_JAPANESE = __import__("re").compile(r"[぀-ヿ一-鿿]")
+_PUBLIC_DOCS = ("README.md", "CITATION.cff", "CHANGELOG.md", "pyproject.toml")
+
+
+def _iter_public_files():
+    """(repo-relative path, path) of every file whose text is public: shipped .py and the documents."""
+    root = _repo_root()
+    seen = set()
+    for _, path in _iter_shipped_modules():
+        seen.add(path)
+        yield str(path.relative_to(root)), path
+    for name in _PUBLIC_DOCS:
+        p = root / name
+        if p.exists():
+            yield name, p
+    for p in sorted((root / "docs").rglob("*.md")):
+        rel = p.relative_to(root)
+        if _SKIP_PARTS & set(rel.parts):
+            continue
+        if rel.parts[:2] == ("docs", "ja"):
+            # docs/ja/ is the designated home of Japanese translations of the
+            # English originals; it is public but Japanese by design.
+            continue
+        yield str(rel), p
+
+
+def _japanese_lines(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return sum(1 for line in text.splitlines() if _JAPANESE.search(line))
+
+
+def _english_only_baseline() -> list[str]:
+    lines = _ENGLISH_ONLY_BASELINE.read_text(encoding="utf-8").splitlines()
+    entries = [ln.split("#", 1)[0].strip() for ln in lines]
+    return [e for e in entries if e]
+
+
+def test_public_files_outside_the_baseline_contain_no_japanese():
+    """New or translated public files are English; the baseline only lists the backlog."""
+    baseline = set(_english_only_baseline())
+    offenders = []
+    for rel, path in _iter_public_files():
+        if rel in baseline:
+            continue
+        n = _japanese_lines(path)
+        if n:
+            offenders.append(f"{rel}  ({n} lines)")
+    assert not offenders, (
+        "Japanese text in public files that are not in the English-only baseline. "
+        "Write new code and documents in English; a file that was translated must not "
+        "regain Japanese. (The baseline is "
+        f"{_ENGLISH_ONLY_BASELINE.relative_to(_repo_root())} and is only ever shortened.)\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_english_only_baseline_entries_are_still_pending():
+    """A translated or deleted file must be removed from the baseline in the same commit (the ratchet)."""
+    public = dict(_iter_public_files())
+    stale = []
+    for rel in _english_only_baseline():
+        if rel not in public:
+            stale.append(f"{rel}: not a public file any more (deleted, moved, or no longer shipped)")
+        elif _japanese_lines(public[rel]) == 0:
+            stale.append(f"{rel}: contains no Japanese now")
+    assert not stale, (
+        "Entries of the English-only baseline that are done; remove them so the list keeps shrinking:\n  "
+        + "\n  ".join(stale)
+    )
+
+
+def test_english_only_scan_covers_code_and_documents():
+    """The scan itself is not empty (path changes are caught here, not by a silent pass)."""
+    files = dict(_iter_public_files())
+    assert "README.md" in files and "docs/api_reference.md" in files, sorted(files)[:10]
+    assert sum(1 for rel in files if rel.endswith(".py")) > 50
+    assert _ENGLISH_ONLY_BASELINE.exists()

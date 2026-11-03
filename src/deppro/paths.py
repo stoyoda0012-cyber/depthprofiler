@@ -1,32 +1,32 @@
-"""生成物の置き場を一箇所で決める。
+"""One place that decides where generated files go.
 
-なぜ要るか
+Why
 ----------
-テスト・診断・ベンチマークが図を書く先が
-``/Users/<name>/Projects/depthprofiler/src/outputs/<name>.png`` と
-**開発者マシンの絶対パス直書き**になっていた。``src/outputs`` は Git 追跡
-された symlink で、個人のクラウドディレクトリを指していた。開発機では
-解決するので通るが、CI のチェックアウトではリンクがぶら下がるため
-``FileNotFoundError`` になる。2026-08-02 の CI では、解析側が全部通った上で
-最後の savefig だけが 4 件落ちていた。
+Tests, diagnostics and benchmarks used to write their figures to
+``/Users/<name>/Projects/depthprofiler/src/outputs/<name>.png``, **an absolute path
+on the developer's machine, hard-coded**. ``src/outputs`` was a Git-tracked symlink
+pointing into a personal cloud directory. It resolves on the development machine,
+but in a CI checkout the link dangles and gives ``FileNotFoundError``. In the CI run
+of 2026-08-02 the whole analysis passed and only the final savefig failed, 4 times.
 
-解決順:
 
-1. 環境変数 ``DEPPRO_OUTPUTS``
-2. チェックアウトから使っていればリポジトリ直下の ``outputs/``（``.gitignore`` 済み）
-3. インストール済みパッケージから（``repo_root()`` に ``pyproject.toml`` が無い）なら
-   カレントディレクトリの ``outputs/``。一度だけ警告を出す（2026-10-19）
+Resolution order:
 
-どの場合も :func:`ensure_outputs_dir` が必要なら作る。既定を一時
-ディレクトリではなくリポジトリ直下にしてあるのは、書いた図をあとで探せる
-場所に置くため。CI では毎回チェックアウトごと捨てられるので溜まらない。
+1. the environment variable ``DEPPRO_OUTPUTS``
+2. when used from a checkout, ``outputs/`` at the repository root (in ``.gitignore``)
+3. when used from an installed package (no ``pyproject.toml`` at ``repo_root()``),
+      ``outputs/`` in the current directory, with a one-time warning (2026-10-19)
 
-``DEPPRO_SIMULATION_ROOT`` などと同じく、未設定でも **import は通り**、
-実際に書く段で初めてディレクトリが決まる。
+In every case :func:`ensure_outputs_dir` creates it if needed. The default is the
+repository root rather than a temporary directory so that written figures can be
+found later. In CI the checkout is discarded each time, so nothing accumulates.
 
-⚠️ 紛らわしい別名が既にある: ``DEPPRO_OUTPUT_ROOT``（単数 + ROOT）を
-公開版に含めない CUDA ベンチ 3 本が使っている。これは JSON を書く先で、
-図の話ではないので触っていない。統合するかは別途の判断。
+As with ``DEPPRO_SIMULATION_ROOT`` and the others, **importing works with it unset**;
+the directory is decided only when something is actually written.
+
+⚠️ A confusable name already exists: ``DEPPRO_OUTPUT_ROOT`` (singular + ROOT) is used by
+three CUDA benchmarks that are not in the public release. It is where JSON is written,
+not figures, so it was left alone. Whether to merge them is a separate decision.
 """
 
 from __future__ import annotations
@@ -46,37 +46,37 @@ __all__ = [
 
 
 def env_value(name: str) -> str | None:
-    """環境変数 ``name`` の値。未設定 **または空文字列** なら ``None``。
+    """Value of the environment variable ``name``. ``None`` when unset **or an empty string**.
 
-    ``DEPPRO_*`` のパス変数はすべてこの規則で読む: ``export DEPPRO_X=`` と
-    空にしたときも未設定と同じに扱う。``os.environ.get(name, default)`` だと
-    空文字列が既定値を素通りして ``Path("")``（= カレントディレクトリ）に
-    なり、エラーから変数名が消えるため。空白だけの値は特別扱いしない。
+    Every ``DEPPRO_*`` path variable is read by this rule: ``export DEPPRO_X=`` (emptied)
+    is treated the same as unset. With ``os.environ.get(name, default)`` an empty string
+    bypasses the default and becomes ``Path("")`` (= the current directory), and the
+    variable name disappears from the error. A value of only whitespace gets no special treatment.
     """
     value = os.environ.get(name)
     return value if value else None
 
 
 def env_path_or_placeholder(name: str) -> Path:
-    """``name`` のパス。未設定・空文字列なら ``<name>-not-set``。
+    """The path of ``name``. ``<name>-not-set`` when unset or an empty string.
 
-    未設定でも import は通り、そのパスを読む段のエラーに変数名が出る。
-    ``~`` は展開する。
+    Importing works with it unset; the error at the point of reading that path names the variable.
+    ``~`` is expanded.
     """
     return Path(env_value(name) or f"{name}-not-set").expanduser()
 
 
 def repo_root() -> Path:
-    """リポジトリのルート（``src/deppro/paths.py`` から 2 つ上）。
+    """The repository root (two levels above ``src/deppro/paths.py``).
 
-    インストール済みパッケージから呼ばれた場合は site-packages の 2 つ上で、
-    チェックアウトのルートではない。:func:`in_checkout` で区別する。
+    When called from an installed package this is two levels above site-packages, not
+    the root of a checkout. :func:`in_checkout` tells them apart.
     """
     return Path(__file__).resolve().parents[2]
 
 
 def in_checkout() -> bool:
-    """``repo_root()`` がこのリポジトリのチェックアウト（``pyproject.toml`` を持つ）か。"""
+    """Whether ``repo_root()`` is a checkout of this repository (has ``pyproject.toml``)."""
     return (repo_root() / "pyproject.toml").is_file()
 
 
@@ -84,16 +84,16 @@ _warned_installed_outputs = False
 
 
 def outputs_dir() -> Path:
-    """生成物の置き場を返す（作りはしない）。
+    """Return where generated files go (without creating it).
 
-    場所を知りたいだけのときはこちら。実際に書くなら
-    :func:`ensure_outputs_dir` を使う。
+    Use this when you only need the location. To actually write, use
+    :func:`ensure_outputs_dir`.
 
-    1. ``DEPPRO_OUTPUTS`` が設定されていればそこ。
-    2. チェックアウトから使っていれば ``<repo>/outputs``。
-    3. インストール済みパッケージからで ``DEPPRO_OUTPUTS`` が無ければ、
-       **カレントディレクトリの** ``outputs/``。site-packages の中に書かないため。
-       このときは一度だけ警告を出す。
+    1. ``DEPPRO_OUTPUTS`` if set.
+    2. ``<repo>/outputs`` when used from a checkout.
+    3. From an installed package without ``DEPPRO_OUTPUTS``, ``outputs/`` **in the
+          current directory**, so that nothing is written inside site-packages.
+          A warning is emitted once in that case.
     """
     env = env_value("DEPPRO_OUTPUTS")
     if env:
@@ -114,10 +114,10 @@ def outputs_dir() -> Path:
 
 
 def ensure_outputs_dir(*subdirs: str) -> Path:
-    """生成物の置き場を作って返す。
+    """Create and return where generated files go.
 
-    ``ensure_outputs_dir("semifree", "grid")`` のようにサブディレクトリを
-    足せる。書き込み側はこれを呼んでからファイル名を繋ぐ:
+    Subdirectories can be added, as in ``ensure_outputs_dir("semifree", "grid")``.
+    Writers call this and then append the file name:
 
         path = ensure_outputs_dir() / "gradient_profile_effect.png"
         plt.savefig(path, dpi=150)
@@ -128,35 +128,35 @@ def ensure_outputs_dir(*subdirs: str) -> Path:
 
 
 def simulation_root() -> Path:
-    """MATLAB 由来のシミュレーションデータ置き場（``DEPPRO_SIMULATION_ROOT``）。
+    """Location of the MATLAB-generated simulation data (``DEPPRO_SIMULATION_ROOT``).
 
-    ``Checkered/10x10x200_7elem_noisy/...`` のような、MATLAB 側で生成した
-    ベンチマーク H5 のルート。読み取り専用の外部データなので
-    :func:`outputs_dir` とは別建てにしてある。
+    The root of the benchmark H5 files generated on the MATLAB side, such as
+    ``Checkered/10x10x200_7elem_noisy/...``. Read-only external data, so it is kept
+    separate from :func:`outputs_dir`.
 
-    ほかの ``DEPPRO_*`` と同じ作法で、**未設定でも import は通り**、
-    実際に読む段で変数名を含むエラーになる。既定値をここに書かないのは、
-    実データの置き場が環境ごとに違うため。
+    As with the other ``DEPPRO_*`` variables, **importing works with it unset**; the
+    error, naming the variable, comes when the data is actually read. No default is
+    written here because the location of the real data differs per machine.
     """
     return env_path_or_placeholder("DEPPRO_SIMULATION_ROOT")
 
 
 def legacy_simulation_root() -> Path:
-    """既存のベンチマーク・診断スクリプト用のシミュレーションデータ置き場。
+    """Simulation-data location for the existing benchmark and diagnostic scripts.
 
-    ``DEPPRO_SIMULATION_ROOT`` が設定されていればそれ（空文字列は未設定と同じ）、
-    未設定なら以前から使われていたホーム相対の置き場
-    （``~/Documents/MATLAB/Simulation/DepthProfiler``）を返す。
+    ``DEPPRO_SIMULATION_ROOT`` if set (an empty string counts as unset), otherwise the
+    home-relative location that was used before
+    (``~/Documents/MATLAB/Simulation/DepthProfiler``).
 
-    ホーム相対の既定値は ``benchmarks/paths.py`` などに直書きされていたもので、
-    ここに 1 か所にまとめた。未設定のときの挙動は以前と同じ。**新しいコードでは
-    使わず** :func:`simulation_root` を使うこと（未設定なら変数名入りのパスになる）。
+    The home-relative default was hard-coded in ``benchmarks/paths.py`` and elsewhere and
+    is gathered here in one place. The behavior when unset is as before. **New code does
+    not use this**; it uses :func:`simulation_root` (which gives a path naming the variable when unset).
 
-    公開 API ではない（``__all__`` に入れていない）。呼び出し元は
-    ``benchmarks/paths.py``（と、公開版に含めない診断スクリプト）だけに限る。
-    ``tests/unit/test_env_paths.py`` が、``src/deppro`` のほかの場所
-    （``tests/`` を含む）からの名前や属性による参照を検出する。文字列で名前を
-    組み立てる ``getattr`` などは検出できない。
+    Not a public API (not in ``__all__``). The only callers are ``benchmarks/paths.py``
+    (and diagnostic scripts that are not in the public release).
+    ``tests/unit/test_env_paths.py`` detects references by name or attribute from
+    elsewhere in ``src/deppro`` (including ``tests/``). References that build the name
+    from a string, such as ``getattr``, are not detected.
     """
     env = env_value("DEPPRO_SIMULATION_ROOT")
     if env:

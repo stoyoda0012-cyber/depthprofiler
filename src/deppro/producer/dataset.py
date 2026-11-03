@@ -1,11 +1,11 @@
-"""cfg -> HDF5 + manifest。Python だけで完結する生成の入口。
+"""cfg -> HDF5 + manifest. The generation entry point that runs entirely in Python.
 
-**場面の定義（生成規則）と実行方式を別項目として記録する**（設計側の指示 2026-09-08）:
+**The scene definition (generation rule) and the execution mode are recorded as separate items** (design instruction of 2026-09-08):
 
-* `manifest.resolved.generationRule` — SV の初期値・更新式・更新/リセットの範囲・演算精度・版
-* `manifest.resolved.execution`      — 逐次/並列、worker 数
+* `manifest.resolved.generationRule` — initial SV, update formula, update/reset scope, arithmetic precision, version
+* `manifest.resolved.execution`      — sequential/parallel, number of workers
 
-同じ生成規則なら実行方式を変えても結果が変わらない設計にする。今は逐次互換のみ実装。
+The design is that the same generation rule gives the same result under any execution mode. Only the sequential-compatible mode is implemented so far.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ SCHEMA_VERSION = "1.1.0"
 PRODUCER = "python"
 PRODUCER_VERSION = "0.1.0"
 
-#: SV の更新規則。実行方式ではなく **生成規則** の一部なので identity に入れる。
+#: The SV update rule. Part of the **generation rule**, not of the execution mode, so it goes into the identity.
 SV_RULE_SEQUENTIAL = "sequential-feedback/1"
 
 
@@ -51,13 +51,13 @@ class GenerationError(RuntimeError):
 
 @dataclass
 class ProducerConfig:
-    """生成設定。参照 H5 を読まずにこれだけで生成できることを要件とする。"""
+    """Generation settings. Required to be sufficient on their own, without reading a reference H5."""
 
     grid_x: int
     grid_y: int
     time_steps: int
     time_size: int
-    stack: Optional[int] = None          # 省略時 grid_x*grid_y*time_steps。素数も可
+    stack: Optional[int] = None          # default grid_x*grid_y*time_steps; a prime is allowed
     depth_bins: int = 20
     total_depth: float = 600.0
     noise: float = 0.0
@@ -72,13 +72,13 @@ class ProducerConfig:
     feature_vector_source: Sequence[float] = ()
     initial_support_vector: Sequence[float] = ()
     initial_support_vector_provenance: str = "unspecified"
-    #: 初期 SV の出どころ。**この 2 つは別物なので混ぜない**。
-    #:   "cfg-explicit"      — cfg に書いた上書き値をそのまま生成の種にする
-    #:   "derived-from-Dini" — その生成の Dini から p/w/h を導いて種にする（MATLAB の既定）
-    #: 切り替えると生成結果そのものが変わる。過去の GT/X 一致結果は流用できない。
+    #: Where the initial SV comes from. **These two are different things; do not mix them.**
+    #:   "cfg-explicit"      — the override values written in cfg are the seed of the generation as they are
+    #:   "derived-from-Dini" — p/w/h derived from the Dini of that generation are the seed (MATLAB default)
+    #: Switching changes the generated result itself. Earlier GT/X agreement results cannot be reused.
     initial_support_vector_mode: str = "cfg-explicit"
 
-    #: "light" = 解析側 reader 向け（既定、従来どおり）／"gui" = MATLAB GUI が開ける形
+    #: "light" = for the analysis-side reader (default, as before) / "gui" = a form the MATLAB GUI can open
     export_profile: str = "light"
     gui: Optional[GuiSettings] = None
 
@@ -114,16 +114,16 @@ class ProducerConfig:
 
 
 def anti_index(ne: int, subst: Sequence[int]) -> List[int]:
-    """MATLAB `antisubst`: subst 以外の全元素（0-based）。"""
+    """MATLAB `antisubst`: every element other than subst (0-based)."""
     return [i for i in range(int(ne)) if i not in set(subst)]
 
 
 def _sha256(path: Path) -> str:
-    """書き終えたファイルの内容ハッシュ。
+    """Content hash of the finished file.
 
-    name+bytes だけでは「どのファイルを検証したか」が言えない、という解析検証側の指摘。
-    とくに MATLAB の AutoSave は **同じサイズのまま**中身を書き換える経路があるので、
-    サイズと mtime による指紋では検出できない。
+    name+bytes alone cannot say "which file was verified" (noted by the analysis-side review).
+    In particular, MATLAB's AutoSave has a path that rewrites the contents **at the same size**,
+    so a fingerprint of size and mtime cannot detect it.
     """
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -138,7 +138,7 @@ def _generation_id() -> str:
 
 
 def _layout(cfg: ProducerConfig, ns: int) -> Dict[str, Any]:
-    """3 状態。矩形が成り立たないものを黙って矩形にしない（PR #9 と同じ契約）。"""
+    """Three states. What is not a rectangle is not silently made one (same contract as PR #9)."""
     ppf = cfg.grid_x * cfg.grid_y
     if ppf <= 0:
         return {"type": "flat_samples", "note": "no grid declared", "complete": False}
@@ -162,66 +162,66 @@ IF_EXISTS_VALUES = ("error", "clean")
 
 
 def validate_config(cfg: ProducerConfig) -> SceneFlags:
-    """cfg だけで分かる不備を**副作用の前に**全部出す。戻り値は検証済みの場面フラグ。
+    """Report every defect that cfg alone reveals, **before any side effect**. Returns the validated scene flags.
 
-    2026-09-08 の独立点検の指摘: 以前は未移植分岐の拒否が材料表の読み込みと lambda 計算の
-    後、`noise>0` の拒否は GT と forward を作り終えた後だった。ファイルを消す前・重い計算の
-    前に落ちるよう、ここへまとめた。
+    Noted by the independent inspection of 2026-09-08: the rejection of unported branches used to come
+    after the material table was read and lambda computed, and the rejection of `noise>0` after the GT and
+    forward were built. Gathered here so that it fails before files are deleted and before heavy computation.
     """
     if not cfg.element_symbols:
-        raise GenerationError("element_symbols が空")
+        raise GenerationError("element_symbols is empty")
     ne = len(cfg.element_symbols)
     for name, seq in (("orbitals", cfg.orbitals), ("compounds", cfg.compounds),
                       ("charges", cfg.charges), ("properties", cfg.properties)):
         if len(seq) != ne:
-            raise GenerationError(f"{name} の長さ {len(seq)} が element_symbols の {ne} と違う")
-    roles = cfg.role_indices()                      # 未知の property はここで落ちる
+            raise GenerationError(f"length of {name}, {len(seq)}, differs from element_symbols, {ne}")
+    roles = cfg.role_indices()                      # an unknown property fails here
     if not roles["subst"]:
-        raise GenerationError("subst が 1 つも無い")
+        raise GenerationError("no subst at all")
     if cfg.depth_bins <= 0 or cfg.total_depth <= 0:
-        raise GenerationError(f"depth_bins={cfg.depth_bins} total_depth={cfg.total_depth} は正の値")
+        raise GenerationError(f"depth_bins={cfg.depth_bins} total_depth={cfg.total_depth} must be positive")
     if not len(cfg.theta_obs):
-        raise GenerationError("theta_obs が空")
+        raise GenerationError("theta_obs is empty")
     if cfg.n_stack() <= 0:
-        raise GenerationError(f"stack 数が {cfg.n_stack()}")
+        raise GenerationError(f"stack count is {cfg.n_stack()}")
     if cfg.initial_support_vector_mode not in ("cfg-explicit", "derived-from-Dini"):
         raise GenerationError(
-            f"initial_support_vector_mode={cfg.initial_support_vector_mode!r} は未定義")
+            f"initial_support_vector_mode={cfg.initial_support_vector_mode!r} is undefined")
     if cfg.initial_support_vector_mode == "derived-from-Dini":
         raise NotImplementedError(
-            "derived-from-Dini は未実装。切り替えると生成の種が変わるので、"
-            "小標本で GT/X を取り直してから入れる（過去の一致結果は流用しない）。")
+            "derived-from-Dini is not implemented. Switching changes the seed of the generation, so"
+            " re-take GT/X on a small sample before enabling it (earlier agreement results are not reused).")
     if cfg.export_profile not in ("light", "gui"):
-        raise GenerationError(f"export_profile={cfg.export_profile!r} は 'light' か 'gui'")
+        raise GenerationError(f"export_profile={cfg.export_profile!r} must be 'light' or 'gui'")
     if cfg.noise:
         raise NotImplementedError(
-            f"noise={cfg.noise} は未実装。Python 側の分布・スケール・適用段階・seed を "
-            "決めてから入れる。noise=0 で先に確かめること。")
+            f"noise={cfg.noise} is not implemented. Decide the distribution, scale, stage of application and seed "
+            "on the Python side first. Verify with noise=0 beforehand.")
     flags = SceneFlags(bottom_layer=cfg.bottom_layer or None, top_layer=cfg.top_layer or None,
                        interf_redox=cfg.interf_redox or None, etch_grow=cfg.etch_grow or None)
-    flags.validate()                                # 未移植の時間分岐
+    flags.validate()                                # unported time branches
     if cfg.distribution != "Gaussian":
         raise NotImplementedError(
-            f"distribution={cfg.distribution!r} は未移植（実装は 'Gaussian' のみ）")
+            f"distribution={cfg.distribution!r} is not ported (only 'Gaussian' is implemented)")
     return flags
 
 
 def _prepare_out_dir(out: Path, if_exists: str) -> None:
-    """出力先の保護。**cfg の検査を通してから呼ぶこと**（消してから落ちない）。
+    """Protection of the output folder. **Call after the cfg checks** (do not delete first and fail later).
 
-    以前は `*.h5` があるときしか効かず、manifest.json だけが残った出力先では
-    `if_exists='error'` でも素通りして manifest を上書きしていた（独立点検 P1）。
-    いまは**中身が何かあれば**拒否する。
+    It used to act only when `*.h5` existed; an output folder with only a manifest.json left passed
+    even with `if_exists='error'` and the manifest was overwritten (independent inspection P1).
+    Now **anything inside** is refused.
     """
     if if_exists not in IF_EXISTS_VALUES:
         raise GenerationError(
-            f"if_exists={if_exists!r} は未定義（{IF_EXISTS_VALUES} のいずれか）")
+            f"if_exists={if_exists!r} is undefined (one of {IF_EXISTS_VALUES})")
     if out.exists():
         existing = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
         if existing:
             if if_exists == "error":
                 raise GenerationError(
-                    f"{out} は空ではない (if_exists='error'): {existing[:8]}"
+                    f"{out} is not empty (if_exists='error'): {existing[:8]}"
                     + (" ..." if len(existing) > 8 else ""))
             for f in list(out.glob("*.h5")) + list(out.glob("*.json")):
                 f.unlink()
@@ -229,8 +229,8 @@ def _prepare_out_dir(out: Path, if_exists: str) -> None:
 
 
 def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "error") -> Dict[str, Any]:
-    """生成して HDF5 と manifest を書く。戻り値は manifest の内容。"""
-    flags = validate_config(cfg)          # 副作用の前に全部検査する
+    """Generate and write the HDF5 and the manifest. Returns the manifest contents."""
+    flags = validate_config(cfg)          # check everything before any side effect
     t0 = time.time()
     out = Path(out_dir).expanduser()
     _prepare_out_dir(out, if_exists)
@@ -255,13 +255,13 @@ def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "erro
                        const_index=roles["const"], linked_index=roles["linked"],
                        support_vector=np.asarray(cfg.initial_support_vector, float),
                        distribution=cfg.distribution)
-    # 逐次再帰。SV は前 sample の D から作って次へ送る。近似も chunk ごとの reset もしない。
+    # Sequential recursion. The SV is built from the previous sample's D and passed on. No approximation and no per-chunk reset.
     D = depth_profiles_sequential(fv, spec)
     fspec = ForwardSpec(depth=depth, angles_deg=theta, step_size=step,
                         gamma_eff=cfg.gamma_eff, lambda_basic=L)
     intensity, X = observations(D, fspec)
 
-    # 保存 T の由来を宣言する。GT のどの画素の forward でもない。
+    # Declare the origin of the stored T. It is not the forward of any GT pixel.
     from deppro.producer.forward import transfer_and_intensity
     t_ref, _, _ = transfer_and_intensity(D[0], fspec)
     trans_mat_provenance = (
@@ -272,7 +272,7 @@ def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "erro
     gui = cfg.gui or GuiSettings()
     state = None
     if cfg.export_profile == "gui":
-        # **生成の中で 1 度だけ組む**。export のときに作り直さない。
+        # **Built once, inside the generation**. Not rebuilt at export.
         state = build_pre_analysis_state(
             depth=depth, charge=np.asarray(cfg.charges, float),
             subst_index=roles["subst"], anti_index=anti_index(ne, roles["subst"]),
@@ -284,7 +284,7 @@ def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "erro
             feature_vectors=fv,
             support_vector_set=np.asarray(cfg.initial_support_vector, float),
             optimization_method_value=gui.optimization_method_value)
-        # MATLAB は解析前に TransMatObs = T(Dopt) = T(Dini) を持つ。GT の forward ではない。
+        # MATLAB holds TransMatObs = T(Dopt) = T(Dini) before analysis. Not the forward of the GT.
         t_ref = state.trans_mat_obs
         trans_mat_provenance = (
             "T(Dini) — the pre-analysis transfer matrix MATLAB stores (handles.Dopt == Dini "
@@ -296,7 +296,7 @@ def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "erro
     _write_h5(main, cfg, D, X, L, depth, theta, step, be.values, roles, t_ref, ns,
               state=state, gui=gui, materials=mats, feature_vectors=fv)
 
-    # 閉じてから、別に開き直して構造を確かめる
+    # Close, then reopen separately and check the structure
     checks = _reread(main, ns, ne, cfg.depth_bins, theta.size, cfg.grid_x, cfg.grid_y,
                      lambda_basic=L, step_size=step, gamma_eff=cfg.gamma_eff, angles=theta)
 
@@ -352,13 +352,13 @@ def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "erro
                     **be.sources,
                 },
             },
-            # ---- 生成規則（場面の定義）。実行方式とは別項目 ----
+            # ---- Generation rule (scene definition). Separate from the execution mode ----
             "generationRule": {
                 "identity": COMPAT_IDENTITY,
                 "supportVector": {
                     "rule": SV_RULE_SEQUENTIAL,
                     "initial": list(map(float, cfg.initial_support_vector)),
-                    # cfg 明示値か Dini 由来かを機械可読で残す。文章の provenance とは別項目。
+                    # Record machine-readably whether the cfg value or the Dini-derived one was used. Separate from the textual provenance.
                     "initialMode": cfg.initial_support_vector_mode,
                     "initialModeMeaning": {
                         "cfg-explicit": "the generation seed is the cfg value, written verbatim; "
@@ -380,10 +380,10 @@ def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "erro
             "roleDeclarations": _role_declarations(cfg),
             "datasets": _dataset_roles(cfg),
             "exportProfile": cfg.export_profile,
-            # 各変調の反転（規則）と合成後の山谷（実測）は別項目として残す。
+            # The reversal of each modulation (rule) and the peaks and troughs after composition (measured) are kept as separate items.
             "sceneTiming": scene_timing(fv, cfg.grid_x, cfg.grid_y, ns, cfg.time_size),
             "preAnalysisState": _pre_analysis_record(cfg, gui, state),
-            # ---- 実行方式。生成規則を変えないこと ----
+            # ---- Execution mode. Must not change the generation rule ----
             "execution": {
                 "mode": "sequential",
                 "workers": 1,
@@ -427,13 +427,13 @@ def generate(cfg: ProducerConfig, out_dir: Path | str, *, if_exists: str = "erro
 
 
 def _role_declarations(cfg: ProducerConfig) -> Dict[str, Any]:
-    """この producer が**自分で言えることだけ**を宣言する。
+    """Declare **only what this producer can say for itself**.
 
-    MATLAB 側 (`resolved.roleDeclarations`) はプロジェクト所有者による広範な宣言で、
-    生の測定形式や Toyomacro の事情まで含む。**それを写さない**。ここに書くのは
-    この producer が実際に書いたデータセットの役割だけ。
+    The MATLAB side (`resolved.roleDeclarations`) is a broad declaration by the project owner that
+    even covers raw measurement formats and Toyomacro matters. **It is not copied.** Written here are
+    only the roles of the datasets this producer actually wrote.
 
-    解析側 `dataset_preflight` の `roles.declared` は `groundTruth.array` を見る。
+    The analysis-side `dataset_preflight` reads `roles.declared` from `groundTruth.array`.
     """
     return {
         "declaredBy": f"deppro.producer {PRODUCER_VERSION} (generation time)",
@@ -480,7 +480,7 @@ def _role_declarations(cfg: ProducerConfig) -> Dict[str, Any]:
 
 
 def _dataset_roles(cfg: ProducerConfig) -> List[Dict[str, str]]:
-    """`resolved.datasets` — 名前と役割の対応。preflight が名前からの推測を止めるために読む。"""
+    """`resolved.datasets` — the mapping of names to roles. preflight reads it to stop guessing from names."""
     rows = [
         {"name": "Dstk", "role": "ground truth D(z) per sample"},
         {"name": "Xstk", "role": "observed X(theta) per sample, the forward of Dstk"},
@@ -489,9 +489,9 @@ def _dataset_roles(cfg: ProducerConfig) -> List[Dict[str, str]]:
     ]
     if cfg.export_profile == "gui":
         rows += [
-            {"name": "Drlt", "role": "result slot; initialised to Dini replicated, NOT ground truth"},
-            {"name": "Dtrn", "role": "training slot; initialised to Dini replicated, NOT ground truth"},
-            {"name": "Xrlt", "role": "result slot; initialised to Xini replicated"},
+            {"name": "Drlt", "role": "result slot; initialized to Dini replicated, NOT ground truth"},
+            {"name": "Dtrn", "role": "training slot; initialized to Dini replicated, NOT ground truth"},
+            {"name": "Xrlt", "role": "result slot; initialized to Xini replicated"},
             {"name": "FV0stk", "role": "FeatureVector_Source per sample (generation input)"},
             {"name": "FVstk", "role": "FeatureVector_Set per sample, measured back from Dstk"},
             {"name": "SVstk", "role": "SupportVector per sample, measured back from Dstk"},
@@ -504,7 +504,7 @@ def _dataset_roles(cfg: ProducerConfig) -> List[Dict[str, str]]:
 
 
 def _pre_analysis_record(cfg, gui, state) -> Optional[Dict[str, Any]]:
-    """解析前の状態の由来。**export で作り直していないこと**を言えるようにする。"""
+    """Origin of the pre-analysis state. Makes it possible to say **it was not rebuilt at export**."""
     if state is None:
         return None
     cfg_sv = np.asarray(cfg.initial_support_vector, dtype=float).ravel()
@@ -517,11 +517,11 @@ def _pre_analysis_record(cfg, gui, state) -> Optional[Dict[str, Any]]:
             "chargeIterations": INITIAL_GUESS_ITERATIONS,
             "boost": "1 + 1/k",
             "substShare": "1/len(subst)",
-            "note": "生成側 CalculateDistribution（30 回・1+100*exp(-k/2)）とは別の規則。",
+            "note": "A different rule from the producer-side CalculateDistribution (30 iterations, 1+100*exp(-k/2)).",
         },
         "sparsityThreshold": SPARSITY_THRESHOLD,
         "objectiveMinVal": OBJECTIVE_MIN_VAL,
-        "computedOnce": "built inside generate(); the writer only serialises it. "
+        "computedOnce": "built inside generate(); the writer only serializes it. "
                         "No initial-state quantity is recomputed at export time.",
         "supportVectorSetWritten": {
             "values": cfg_sv.tolist(),
@@ -578,8 +578,8 @@ def _write_h5(main, cfg, D, X, L, depth, theta, step, be_values, roles, t_ref, n
         f.create_dataset("stackxyt", data=_stack_xyt(cfg.grid_x, cfg.grid_y, ns))  # (3, P)
         g = f.create_group("ezdeprof")
         s = h5py.string_dtype("utf-8")
-        # MATLAB の `h5read(...,[1 1],[1 nelm])` は rank 2 を要求するので、GUI profile では
-        # (ne,1) で書く（軽量 profile は従来どおり 1 次元。値も順序も同じ）。
+        # MATLAB's `h5read(...,[1 1],[1 nelm])` requires rank 2, so the GUI profile writes
+        # (ne,1) (the light profile stays 1-D as before; values and order are the same).
         def _strs(values):
             a = np.array(list(values), dtype=object)
             return a.reshape(-1, 1) if state is not None else a
@@ -605,10 +605,10 @@ def _write_h5(main, cfg, D, X, L, depth, theta, step, be_values, roles, t_ref, n
         g.create_dataset("workfunction", data=np.array([cfg.work_function], dtype="f4"))
         g.create_dataset("gammaeff", data=np.array([cfg.gamma_eff], dtype="f4"))
         g.create_dataset("TPPver", data=np.array([cfg.tpp_version], dtype="u1"))
-        # MATLAB は `lambdabasic(a, i, k)`（a=物質, i=放出元素）で読む。h5py は次元が逆なので
-        # **`[0][i][a]` の並びで書く** = `L.T`。`L` は `L[a, i]`。
-        # 転置を忘れても生成そのもの（Dstk/Xstk）は内部で正しい向きを使うので気づきにくいが、
-        # 保存値を読む側（MATLAB の Set/Calculation、解析側の `problem.py`）は転置した値を受け取る。
+        # MATLAB reads `lambdabasic(a, i, k)` (a = material, i = emitting element). h5py has the dimensions
+        # reversed, so **write in the order `[0][i][a]`** = `L.T`. `L` is `L[a, i]`.
+        # Forgetting the transpose is hard to notice, because the generation itself (Dstk/Xstk) uses the correct orientation internally,
+        # but readers of the stored value (MATLAB's Set/Calculation, the analysis-side `problem.py`) receive transposed values.
         g.create_dataset("lambdabasic", data=np.ascontiguousarray(L.T).astype("f4").reshape(1, ne, ne))
         g.create_dataset("TransMatObs", data=np.transpose(t_ref, (2, 1, 0)).astype("f4"))
         g.create_dataset("FeatureVector_Source",
@@ -628,12 +628,12 @@ def _write_h5(main, cfg, D, X, L, depth, theta, step, be_values, roles, t_ref, n
 
 def _reread(main, ns, ne, nz, nth, nx, ny, *, lambda_basic=None, step_size=None,
             gamma_eff=None, angles=None) -> Dict[str, Any]:
-    """閉じたファイルを開き直して構造を確かめる。書いた側の記憶を信用しない。
+    """Reopen the closed file and check its structure. Do not trust the writer's memory.
 
-    `lambda_basic` を渡すと、保存した `/ezdeprof/lambdabasic` の**軸の向き**と、
-    保存 D・保存 λ から組み直した X が保存 X と合うかも見る。**軽量 profile にも効く**
-    共通のゲート（2026-09-08 の独立点検 P2 の指摘。以前は GUI 用の事前検査にしか無く、
-    転置バグが軽量 profile 3 件に残った）。"""
+    With `lambda_basic` given, also check the **axis orientation** of the stored `/ezdeprof/lambdabasic`
+    and whether X rebuilt from the stored D and stored λ matches the stored X. **This applies to the light profile too**;
+    a shared gate (independent inspection P2 of 2026-09-08. It used to exist only in the GUI preflight,
+    and the transpose bug survived in 3 light profiles)."""
     import h5py
     problems: List[str] = []
     with h5py.File(main, "r") as f:
@@ -663,14 +663,14 @@ def _reread(main, ns, ne, nz, nth, nx, ny, *, lambda_basic=None, step_size=None,
 
 
 def _lambda_and_forward_check(main, L, step_size, gamma_eff, angles, ns) -> Dict[str, Any]:
-    """保存 λ の向きと、保存 D・保存 λ からの再 forward を確かめる。
+    """Check the orientation of the stored λ and the re-forward from the stored D and stored λ.
 
-    MATLAB は `lambdabasic(a, i, k)` で読み、h5py は次元が逆なので正しい並びは `h5[0][i][a]`。
-    書いた側の `L[a, i]` を転置せずに書くと、読む側が逆向きの値を受け取る。
+    MATLAB reads `lambdabasic(a, i, k)`; h5py has the dimensions reversed, so the correct order is `h5[0][i][a]`.
+    If the writer's `L[a, i]` is written without transposing, the reader receives values in the opposite orientation.
 
-    **向きの識別力は行列に依る。** `L` が対称、あるいは 1 成分だと、転置しても同じ値になるので
-    この検査は向きを見分けられない。見分けられるかどうかを `orientationDiscriminating` で
-    別に報告する（「逆なら必ず差が出る」とは書かない）。
+    **The power to tell the orientation depends on the matrix.** If `L` is symmetric or has one component,
+    transposing gives the same values and this check cannot tell them apart. Whether it can is reported
+    separately in `orientationDiscriminating` (it does not claim "a reversal always shows").
     """
     import h5py
     from deppro.transfer_matrix import TransferMatrix
@@ -690,7 +690,7 @@ def _lambda_and_forward_check(main, L, step_size, gamma_eff, angles, ns) -> Dict
                 + (f"it matches the TRANSPOSED layout instead (max|d|={transposed:.6g}). "
                    "MATLAB reads lambdabasic(a,i,k), so h5[0][i][a] must hold L[a,i]."
                    if transposed < as_written else "it matches neither layout."))
-        # 保存値だけから X を組み直す（生成器の forward 関数は使わない）
+        # Rebuild X from the stored values only (not with the generator's forward function)
         probe = np.unique(np.linspace(0, ns - 1, min(ns, 8)).astype(int))
         tm = TransferMatrix(depth=np.asarray(f["ezdeprof"]["depth"][()], dtype=float).ravel(),
                             step_size=float(step_size),
@@ -711,8 +711,8 @@ def _lambda_and_forward_check(main, L, step_size, gamma_eff, angles, ns) -> Dict
                                        "maxAbsDiffFromTransposed": transposed,
                                        "orientationDiscriminating": bool(discriminating),
                                        "asymmetry": sym,
-                                       "note": "L が対称、または 1 成分だと向きは識別できない。"
-                                               "そのときこの検査は数値整合だけを示す。"},
+                                       "note": "With a symmetric or single-component L the orientation cannot be told;"
+                                               " this check then shows numerical consistency only."},
             "reForwardFromStored": {"maxAbsDiffX": worst, "sampledRows": int(probe.size),
                                     "scope": "sampled rows only; not every stack"}}
 

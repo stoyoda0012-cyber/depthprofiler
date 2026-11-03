@@ -42,7 +42,7 @@ from .transfer_matrix import TransferMatrix
 
 
 # =========================================================================
-# Photon source presets (from SESSAAnalyser/database/bulk_7sources)
+# Photon source presets (from SESSAAnalyzer/database/bulk_7sources)
 # =========================================================================
 
 # 7 typical X-ray sources spanning soft X-ray to HAXPES range
@@ -59,7 +59,7 @@ PHOTON_SOURCES = {
 # Curated presets for common experimental configurations
 ENERGY_PRESETS = {
     "7sources": {
-        "description": "All 7 X-ray sources (SESSAAnalyser database)",
+        "description": "All 7 X-ray sources (SESSAAnalyzer database)",
         "sources": list(PHOTON_SOURCES.keys()),
     },
     "lab": {
@@ -245,7 +245,7 @@ class MultiEnergyCRLB:
         Returns
         -------
         J : (n_obs, n_params) Jacobian
-        X_norm : (n_obs,) normalised forward model
+        X_norm : (n_obs,) normalized forward model
         """
         if abs(lambda_ratio - 1.0) < 1e-10:
             return self._J_conv.copy(), self._X_conv.copy()
@@ -297,7 +297,7 @@ class MultiEnergyCRLB:
         Returns
         -------
         J : (n_obs, n_params) Jacobian
-        X_norm : (n_obs,) normalised forward model
+        X_norm : (n_obs,) normalized forward model
         """
         fi = self.fi
         old_tm = fi.tm

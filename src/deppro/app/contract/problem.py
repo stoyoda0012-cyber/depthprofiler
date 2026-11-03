@@ -1,12 +1,12 @@
-"""P1 契約: 観測だけを持つ ``ProblemSpec`` と、別オブジェクトの ``GroundTruth``。
+"""P1 contract: ``ProblemSpec``, which holds only observations, and ``GroundTruth`` as a separate object.
 
-GT を solver 入力から隔離する（設計書 §5）。``ProblemSpec`` には D が一切入らない。
-読み取りは h5py 読み取り専用。配列は Python 配置 ``(px, depth, elem)``、T は
-``(angle, depth, elem)``（``deppro.io.dstk.load_dstk_data`` と同じ転置）。
-役割インデックスは 0-based に変換して持つ。
+The GT is isolated from the solver input (design document §5). ``ProblemSpec`` holds no D at all.
+Reading is h5py read-only. Arrays are in Python layout ``(px, depth, elem)``, T is
+``(angle, depth, elem)`` (the same transposition as ``deppro.io.dstk.load_dstk_data``).
+Role indices are converted to 0-based.
 
-役割（Dstk = GT、Xstk = 観測、Drlt = 既存再構成）は名前からの**仮定**で、producer manifest の
-dataset_roles で確定するまで ``roles_declared=False`` を持ち回る。GT を総和 1 へ正規化しない。
+The roles (Dstk = GT, Xstk = observation, Drlt = existing reconstruction) are **assumed** from the names;
+``roles_declared=False`` is carried until the producer manifest's dataset_roles settles them. The GT is not normalized to sum 1.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from .dataset_files import (
 
 ROLES_ASSUMED = {
     "Dstk": "ground truth D(z) (assumed from name; producer declaration pending)",
-    "Xstk": "observed X(theta), total-normalised per angle (assumed)",
+    "Xstk": "observed X(theta), total-normalized per angle (assumed)",
     "Drlt": "existing reconstruction written by a previous run (assumed)",
     "ezdeprof/TransMatObs": "transfer matrix of pixel 0 (Xobs/Dobs identity); "
                             "not the full generator forward",
@@ -65,12 +65,12 @@ class Axes:
     step_A: float
     flatten_order: str = ("frame-major assumed: pixel = t*nx*ny + within-frame index; "
                           "within-frame order unverified (no producer sentinel)")
-    # 末尾フレームの画素数。stack が nx*ny の倍数なら px_per_frame（完全格子）。倍数でない
-    # （素数 stack など）ときは余り。nt はその切れたフレームも数える（producer の layout と同じ規約）。
+    # Pixel count of the last frame. px_per_frame (complete grid) if stack is a multiple of nx*ny; otherwise
+    # (prime stack and the like) the remainder. nt counts that truncated frame too (same convention as the producer's layout).
     last_frame_count: Optional[int] = None
-    # 格子の種類（producer の layout.type と同じ語彙）。flat_samples は格子が無い（実験データ:
-    # stack = 測定点数）。その場合は標本列全体を 1 フレーム（nx = stack, ny = 1, nt = 1）として
-    # **表現**するだけで、格子の主張ではない。
+    # Kind of grid (same vocabulary as the producer's layout.type). flat_samples has no grid (measured data:
+    # stack = number of measurement points). The whole sample sequence is then merely **represented** as one
+    # frame (nx = stack, ny = 1, nt = 1); that is not a claim of a grid.
     layout: str = "rectangular_grid"
 
     @property
@@ -101,10 +101,10 @@ class Elements:
     binding_energies: Optional[np.ndarray] = None
 
     def element_configs(self) -> list:
-        """solver 用 ``ElementConfig`` のリスト（deppro.io.dstk.load_dstk_data と同じ組み立て）。"""
+        """List of ``ElementConfig`` for the solver (built as in deppro.io.dstk.load_dstk_data)."""
         from deppro.depth_profile import ElementConfig
         if self.orbitals is None or self.compounds is None or self.binding_energies is None:
-            raise ValueError("orbital/compound/bindingenergy が読めていないので ElementConfig を作れない")
+            raise ValueError("orbital/compound/bindingenergy were not read, so ElementConfig cannot be built")
         return [ElementConfig(symbol=self.symbols[i], orbital=self.orbitals[i],
                               compound=self.compounds[i],
                               binding_energy=float(self.binding_energies[i]),
@@ -126,7 +126,7 @@ class Elements:
 
 @dataclass
 class ProblemSpec:
-    """solver に渡してよいもの。GT は含まない。"""
+    """What may be passed to a solver. Contains no GT."""
     ref: DatasetRef
     axes: Axes
     elements: Elements
@@ -136,7 +136,7 @@ class ProblemSpec:
     lambda_basic: Optional[np.ndarray]
     gamma_eff: Optional[float]
     noise: Optional[float]
-    photon_energy: Optional[float] = None    # ezdeprof/photonenergy の先頭値（load_dstk_data と同じ）
+    photon_energy: Optional[float] = None    # first value of ezdeprof/photonenergy (as in load_dstk_data)
     work_function: Optional[float] = None
     roles_declared: bool = False
     roles_assumed: Dict[str, str] = field(default_factory=lambda: dict(ROLES_ASSUMED))
@@ -150,7 +150,7 @@ class ProblemSpec:
         return ids // self.axes.px_per_frame
 
     def summary(self) -> Dict[str, Any]:
-        """manifest 用の要約（配列は shape のみ）。"""
+        """Summary for the manifest (arrays by shape only)."""
         return {
             "dataset": dataclasses.asdict(self.ref),
             "axes": {"nx": self.axes.nx, "ny": self.axes.ny, "nt": self.axes.nt,
@@ -159,7 +159,7 @@ class ProblemSpec:
                      "depth_A": self.axes.depth_A.tolist(),
                      "angles_deg": self.axes.angles_deg.tolist(),
                      "flatten_order": self.axes.flatten_order,
-                     # 末尾フレームの画素数と総画素数（部分格子では nt*nx*ny と違う）
+                     # pixel count of the last frame and the total (differs from nt*nx*ny on a partial grid)
                      "last_frame_count": self.axes.last_frame_count,
                      "complete": self.axes.complete, "n_px_total": self.axes.n_px_total,
                      "layout": self.axes.layout},
@@ -175,15 +175,15 @@ class ProblemSpec:
 
 @dataclass
 class GroundTruth:
-    """評価器だけが受け取る。solver・ルータに渡さない。"""
+    """Received only by the evaluator. Not passed to solvers or routers."""
     pixel_ids: np.ndarray
-    D: np.ndarray                    # (n_px, n_depth, n_elem), as stored (not renormalised)
+    D: np.ndarray                    # (n_px, n_depth, n_elem), as stored (not renormalized)
     source: str = "Dstk (assumed GT; producer declaration pending)"
 
 
 # --------------------------------------------------------------------------
 def cheap_fingerprint(path: Path) -> Tuple[str, str]:
-    """名前・サイズ・mtime からの安価な指紋。内容ハッシュではない（qualification で別途）。"""
+    """Cheap fingerprint from name, size and mtime. Not a content hash (that is done separately in qualification)."""
     st = Path(path).stat()
     h = hashlib.sha256(f"{Path(path).name}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()
     return h[:16], "sha256(name|size|mtime_ns)[:16]"
@@ -192,10 +192,10 @@ def cheap_fingerprint(path: Path) -> Tuple[str, str]:
 def select_pixel_ids(n_px_total: int, px_per_frame: int, *, frames: Optional[Sequence[int]] = None,
                      pixel_ids: Optional[Sequence[int]] = None,
                      max_px_per_frame: Optional[int] = None) -> np.ndarray:
-    """検査・実験に使う画素の決定論的な選択。frames はフレーム先頭から連続、pixel_ids は明示。
+    """Deterministic selection of pixels for checks and experiments. frames are contiguous from the frame start; pixel_ids are explicit.
 
-    末尾フレームが欠けている（n_px_total が px_per_frame の倍数でない）ときは、そのフレームの
-    範囲を実在する画素で切る。存在しないフレームは黙って空にせず IndexError。
+    When the last frame is incomplete (n_px_total is not a multiple of px_per_frame), that frame's
+    range is cut at the existing pixels. A frame that does not exist is an IndexError, not silently empty.
     """
     if pixel_ids is not None:
         ids = np.unique(np.asarray(pixel_ids, dtype=np.int64))
@@ -217,7 +217,7 @@ def select_pixel_ids(n_px_total: int, px_per_frame: int, *, frames: Optional[Seq
 
 
 def _read_rows(dset: h5py.Dataset, ids: np.ndarray) -> np.ndarray:
-    """ソート済み一意 id を連続区間ごとに slice で読む（point selection より速く、順序が保たれる）。"""
+    """Read sorted unique ids as slices per contiguous run (faster than point selection, and order is preserved)."""
     if ids.size == 0:
         return np.zeros((0,) + dset.shape[1:], dtype=np.float64)
     breaks = np.nonzero(np.diff(ids) != 1)[0] + 1
@@ -231,7 +231,7 @@ def _scalar(g: h5py.Group, key: str) -> Optional[float]:
 
 
 def _declared_layout(manifest_path: Path) -> Optional[Dict[str, Any]]:
-    """同居 manifest の layout（無い・読めない・object でないときは None）。"""
+    """The layout of the co-located manifest (None when missing, unreadable, or not an object)."""
     try:
         data = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -241,7 +241,7 @@ def _declared_layout(manifest_path: Path) -> Optional[Dict[str, Any]]:
 
 
 def _declared_partial_matches(layout: Optional[Dict[str, Any]], nx: int, ny: int, n_px: int):
-    """部分格子の宣言と中身の照合。None = 宣言なし、True = 一致、str = 不一致の理由。"""
+    """Check the partial-grid declaration against the contents. None = not declared, True = matches, str = reason for the mismatch."""
     if not layout or layout.get("type") != "rectangular_grid_partial":
         return None
     ppf = nx * ny
@@ -257,16 +257,16 @@ def load_problem(folder: Path, *, frames: Optional[Sequence[int]] = None,
                  with_ground_truth: bool = True,
                  allow_partial: bool = False,
                  allow_flat: bool = False) -> Tuple[ProblemSpec, Optional[GroundTruth]]:
-    """データセットフォルダから ProblemSpec（観測）と GroundTruth（別）を読む。読み取り専用。
+    """Read ProblemSpec (observations) and GroundTruth (separate) from a dataset folder. Read-only.
 
-    stack が nx*ny の倍数でない（末尾フレームが欠ける）データは、同居 manifest の
-    ``layout.type == "rectangular_grid_partial"`` が中身と一致して宣言しているか、呼び出し側が
-    ``allow_partial=True`` と明示したときだけ読む。どちらも無ければ ValueError（黙って切り捨てない・
-    黙って矩形に押し込まない。生成側アダプタの stack_coordinates と同じ規約）。
+    Data whose stack is not a multiple of nx*ny (incomplete last frame) is read only when the co-located
+    manifest declares ``layout.type == "rectangular_grid_partial"`` consistently with the contents, or the
+    caller says ``allow_partial=True`` explicitly. Otherwise ValueError (no silent truncation, no silent
+    squeezing into a rectangle; the same convention as stack_coordinates in the producer adapter).
 
-    格子の無いデータ（実験データ、SimOrExp=0: stack は測定点数で dxdydt の格子は無関係）は、
-    manifest の ``layout.type == "flat_samples"`` の宣言か ``allow_flat=True`` の明示で読み、
-    標本列全体を 1 フレーム（nx = stack, ny = 1, nt = 1）として表現する。
+    Data without a grid (measured data, SimOrExp=0: stack is the number of measurement points and the dxdydt grid is unrelated)
+    is read when the manifest declares ``layout.type == "flat_samples"`` or the caller says ``allow_flat=True``,
+    and the whole sample sequence is represented as one frame (nx = stack, ny = 1, nt = 1).
     """
     folder = Path(folder).expanduser().resolve()
     spec = parse_dataset_folder(folder)
@@ -294,14 +294,14 @@ def load_problem(folder: Path, *, frames: Optional[Sequence[int]] = None,
             raise ValueError(f"allow_flat=True but the manifest declares layout {ltype!r} (a grid); "
                              "do not override a declared grid")
         if ltype == "flat_samples" or allow_flat:
-            # 格子なし: 標本列全体を 1 フレームとして表現する（格子の主張ではない）
+            # No grid: represent the whole sample sequence as one frame (not a claim of a grid)
             nx, ny, nt, last, lay = P, 1, 1, P, "flat_samples"
         else:
             nx, ny = (spec.nx, spec.ny) if spec is not None else (dxdydt[0], dxdydt[1])
             if nx * ny == 0:
                 raise ValueError(f"grid nx*ny is zero (folder={spec}, dxdydt={dxdydt}); "
                                  "for grid-less data pass allow_flat=True or declare layout flat_samples")
-            n_full, rem = divmod(P, nx * ny)     # nt は中身から。dxdydt[2] は TimeSize であって nt ではない
+            n_full, rem = divmod(P, nx * ny)     # nt from the contents. dxdydt[2] is TimeSize, not nt
             if rem == 0:
                 nt, last, lay = n_full, nx * ny, "rectangular_grid"
             else:
@@ -355,12 +355,12 @@ def load_problem(folder: Path, *, frames: Optional[Sequence[int]] = None,
         problem = ProblemSpec(ref=ref, axes=axes, elements=elements, X=X, pixel_ids=ids,
                               stored_T=T, lambda_basic=lam_b, gamma_eff=_scalar(g, "gammaeff"),
                               noise=_scalar(g, "noise"), photon_energy=photon, work_function=wf,
-                              roles_declared=False)   # manifest の dataset_roles 契約が未合意
+                              roles_declared=False)   # the manifest's dataset_roles contract is not agreed yet
     return problem, gt
 
 
 def load_existing_result(folder: Path, pixel_ids: np.ndarray, dataset: str = "Drlt") -> np.ndarray:
-    """既存の再構成（``Drlt`` 等）を Python 配置 (n, depth, elem) で読む。独立標本ではない。"""
+    """Read an existing reconstruction (``Drlt`` and the like) in Python layout (n, depth, elem). Not an independent sample."""
     folder = Path(folder).expanduser().resolve()
     files = discover_files(folder)
     if len(files["main"]) != 1:

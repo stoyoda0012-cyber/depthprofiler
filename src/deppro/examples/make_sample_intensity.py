@@ -10,7 +10,7 @@ fixed here, so running this script reproduces the file:
 - photon energy 1486.6 eV (Al Kα), work function 4.5 eV;
 - angles 0, 30, 45, 55, 65, 75 degrees;
 - noise: none, so there is no random seed;
-- intensities normalised to sum to 1 at each angle
+- intensities normalized to sum to 1 at each angle
   (``TransferMatrix.forward(..., normalize=True)``).
 
 Compound and binding-energy values come from whichever tables deppro resolves:

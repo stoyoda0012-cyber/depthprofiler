@@ -1,11 +1,11 @@
 """
-ARXPS Analysis Pipeline - 自動解析パイプライン
+ARXPS Analysis Pipeline - automatic analysis pipeline
 ===============================================
 
-StructureAnalyzer → 適切なソルバー自動実行 → 結果検証
-の一連の流れを統合したパイプライン。
+A pipeline that chains StructureAnalyzer → automatic run of the appropriate solver →
+result verification.
 
-人手や LLM の判断を挟まずに、構造の判定からソルバーの実行までを自動で回すことを目指す。
+The aim is to run from structure determination to solver execution automatically, without human or LLM judgment in between.
 
 Usage:
     from deppro.pipeline import ARXPSPipeline
@@ -14,9 +14,9 @@ Usage:
     result = pipeline.analyze(I_obs, tm, element_labels)
 
     if result.success:
-        print(f"膜厚: {result.layer_thicknesses}")
+        print(f"Thicknesses: {result.layer_thicknesses}")
     else:
-        print(f"解析失敗: {result.failure_reason}")
+        print(f"Analysis failed: {result.failure_reason}")
 
 Date: 2026-01-24
 """
@@ -48,17 +48,17 @@ from .depth_profile import ElementConfig
 
 
 class ValidationStatus(Enum):
-    """検証ステータス"""
-    PASSED = "passed"               # 全検証を通過
-    CHI2_WARNING = "chi2_warning"   # Chi²がやや高い
-    CHI2_FAILED = "chi2_failed"     # Chi²が閾値超過
-    CONVERGENCE_FAILED = "convergence_failed"  # 収束失敗
-    PHYSICAL_INVALID = "physical_invalid"      # 物理的に妥当でない
+    """Verification status"""
+    PASSED = "passed"               # every check passed
+    CHI2_WARNING = "chi2_warning"   # Chi² somewhat high
+    CHI2_FAILED = "chi2_failed"     # Chi² above the threshold
+    CONVERGENCE_FAILED = "convergence_failed"  # did not converge
+    PHYSICAL_INVALID = "physical_invalid"      # physically implausible
 
 
 @dataclass
 class ValidationResult:
-    """検証結果"""
+    """Verification result"""
     status: ValidationStatus
     chi2: float
     chi2_threshold: float
@@ -74,31 +74,31 @@ class ValidationResult:
 
 @dataclass
 class PipelineResult:
-    """パイプライン結果"""
-    # 成功/失敗
+    """Pipeline result"""
+    # Success / failure
     success: bool
     failure_reason: Optional[str] = None
 
-    # 構造解析結果
+    # Structure analysis result
     structure_analysis: Optional[AnalysisResult] = None
 
-    # ソルバー結果
+    # Solver result
     solver_used: Optional[str] = None
     solver_result: Optional[Any] = None  # SolverResult or GenericLayerResult
 
-    # 検証結果
+    # Verification result
     validation: Optional[ValidationResult] = None
 
-    # 抽出された情報
+    # Extracted information
     layer_thicknesses: Optional[List[float]] = None
     interface_widths: Optional[List[float]] = None
     D_reconstructed: Optional[np.ndarray] = None
     I_fitted: Optional[np.ndarray] = None
 
-    # 計算時間
+    # Computation time
     elapsed_time: float = 0.0
 
-    # 追加情報
+    # Additional information
     suggestions: List[str] = field(default_factory=list)
 
     def __repr__(self):
@@ -114,38 +114,38 @@ class PipelineResult:
 
 @dataclass
 class PipelineConfig:
-    """パイプライン設定"""
-    # 構造解析設定
+    """Pipeline settings"""
+    # Structure analysis
     angle_dep_threshold: float = 0.05
     stoich_threshold: float = 0.8
 
-    # ソルバー設定
+    # Solver
     solver_method: str = 'LLS'  # 'LLS', 'L2', 'MEM'
     scipy_method: str = 'SLSQP'
     max_iter: int = 100
 
-    # 初期値設定
+    # Initial values
     default_thickness: float = 30.0
     default_width: float = 5.0
 
-    # 検証設定
-    chi2_threshold: float = 0.1       # Chi²/n_data < 0.1 で合格
-    chi2_warning_threshold: float = 0.05  # この値以下で警告なし
-    min_thickness: float = 1.0        # 最小膜厚 (Å)
-    max_thickness: float = 200.0      # 最大膜厚 (Å)
+    # Verification
+    chi2_threshold: float = 0.1       # passes when Chi²/n_data < 0.1
+    chi2_warning_threshold: float = 0.05  # no warning at or below this
+    min_thickness: float = 1.0        # minimum thickness (Å)
+    max_thickness: float = 200.0      # maximum thickness (Å)
 
-    # 自動設定
-    auto_detect_layers: bool = True   # 層構造を自動検出
+    # Automatic settings
+    auto_detect_layers: bool = True   # detect the layer structure automatically
 
 
 class ARXPSPipeline:
     """
-    ARXPS自動解析パイプライン
+    Automatic ARXPS analysis pipeline
 
-    1. StructureAnalyzerでデータを解析
-    2. 適切なソルバーを選択・実行
-    3. 結果を検証
-    4. レポートを生成
+    1. Analyze the data with StructureAnalyzer
+    2. Choose and run the appropriate solver
+    3. Verify the result
+    4. Generate a report
     """
 
     def __init__(self, config: Optional[PipelineConfig] = None):
@@ -153,7 +153,7 @@ class ARXPSPipeline:
         Parameters
         ----------
         config : PipelineConfig, optional
-            パイプライン設定
+            Pipeline settings
         """
         self.config = config or PipelineConfig()
         self.structure_analyzer = StructureAnalyzer(
@@ -171,22 +171,22 @@ class ARXPSPipeline:
         verbose: bool = False,
     ) -> PipelineResult:
         """
-        ARXPS解析を実行
+        Run the ARXPS analysis
 
         Parameters
         ----------
         I_obs : ndarray
-            観測強度 [n_angles, n_elements]
+            Observed intensities [n_angles, n_elements]
         tm : TransferMatrix
-            転送行列
+            Transfer matrix
         elements : List[ElementConfig]
-            元素設定
+            Element configuration
         element_labels : List[str], optional
-            元素ラベル（表示用）
+            Element labels (for display)
         layer_config : GenericLayerConfig, optional
-            層構造設定（指定時はGenericLayerSolverを使用）
+            Layer structure (GenericLayerSolver is used when given)
         verbose : bool
-            詳細出力
+            Verbose output
 
         Returns
         -------
@@ -199,11 +199,11 @@ class ARXPSPipeline:
             print("ARXPS Analysis Pipeline")
             print("=" * 70)
 
-        # ラベルの設定
+        # Labels
         if element_labels is None:
             element_labels = [f"elem{i}" for i in range(I_obs.shape[1])]
 
-        # Step 1: 構造解析
+        # Step 1: structure analysis
         if verbose:
             print("\n[Step 1] Structure Analysis")
             print("-" * 40)
@@ -212,13 +212,13 @@ class ARXPSPipeline:
             I_obs, tm, element_labels, verbose=verbose
         )
 
-        # Step 2: ソルバー選択・実行
+        # Step 2: choose and run the solver
         if verbose:
             print("\n[Step 2] Solver Execution")
             print("-" * 40)
             print(f"Recommended solver: {analysis.solver_recommendation.value}")
 
-        # 層構造が指定されている場合はGenericLayerSolverを使用
+        # Use GenericLayerSolver when a layer structure is given
         if layer_config is not None:
             solver_result, solver_name = self._run_generic_layer_solver(
                 I_obs, tm, layer_config, verbose
@@ -237,17 +237,17 @@ class ARXPSPipeline:
                 elapsed_time=elapsed,
             )
 
-        # Step 3: 結果検証
+        # Step 3: verify the result
         if verbose:
             print("\n[Step 3] Validation")
             print("-" * 40)
 
         validation = self._validate_result(I_obs, solver_result, verbose)
 
-        # Step 4: 結果の整理
+        # Step 4: organize the result
         elapsed = time.time() - start_time
 
-        # 膜厚・界面幅の抽出
+        # Extract thicknesses and interface widths
         layer_thicknesses = None
         interface_widths = None
         D_reconstructed = None
@@ -262,10 +262,10 @@ class ARXPSPipeline:
         if hasattr(solver_result, 'I_opt'):
             I_fitted = solver_result.I_opt
 
-        # 成功判定
+        # Success
         success = validation.passed or validation.status == ValidationStatus.CHI2_WARNING
 
-        # 提案の生成
+        # Suggestions
         suggestions = self._generate_suggestions(
             analysis, validation, solver_name
         )
@@ -308,7 +308,7 @@ class ARXPSPipeline:
         layer_config: GenericLayerConfig,
         verbose: bool,
     ) -> Tuple[Optional[Any], str]:
-        """GenericLayerSolverを実行"""
+        """Run GenericLayerSolver"""
         try:
             solver_config = SolverConfig(
                 method=self.config.solver_method,
@@ -338,16 +338,16 @@ class ARXPSPipeline:
         analysis: AnalysisResult,
         verbose: bool,
     ) -> Tuple[Optional[Any], str]:
-        """推奨ソルバーを実行"""
+        """Run the recommended solver"""
 
         recommendation = analysis.solver_recommendation
 
         if recommendation == SolverRecommendation.GENERIC_LAYER:
-            # 層構造を自動推定してGenericLayerSolverを実行
+            # Infer the layer structure automatically and run GenericLayerSolver
             layer_config = self._auto_detect_layer_config(I_obs, tm, elements, analysis)
             if layer_config:
                 return self._run_generic_layer_solver(I_obs, tm, layer_config, verbose)
-            # 自動検出失敗時はSemiFreeSolverにフォールバック
+            # Fall back to SemiFreeSolver when automatic detection fails
             recommendation = SolverRecommendation.SEMI_FREE
 
         if recommendation == SolverRecommendation.SEMI_FREE:
@@ -365,12 +365,12 @@ class ARXPSPipeline:
         elements: List[ElementConfig],
         verbose: bool,
     ) -> Tuple[Optional[Any], str]:
-        """SemiFreeSolverを実行"""
+        """Run SemiFreeSolver"""
         try:
-            # 簡易的な設定（2元素系を想定）
+            # Simplified settings (assumes a two-element system)
             n_elements = I_obs.shape[1]
 
-            # 酸化物（最初の元素）とその他を分類
+            # Classify into the oxide (first element) and the rest
             free_indices = [0] if n_elements > 1 else []
             linked_indices = [1] if n_elements > 2 else []
             substrate_indices = [n_elements - 1] if n_elements > 0 else [0]
@@ -411,10 +411,10 @@ class ARXPSPipeline:
         elements: List[ElementConfig],
         verbose: bool,
     ) -> Tuple[Optional[Any], str]:
-        """FreeSolverを実行"""
+        """Run FreeSolver"""
         try:
             solver_config = SolverConfig(
-                method='L2',  # FreeSolverには正則化が必要
+                method='L2',  # FreeSolver needs regularization
                 alpha=0.01,
                 scipy_method=self.config.scipy_method,
                 max_iter=self.config.max_iter,
@@ -442,14 +442,14 @@ class ARXPSPipeline:
         analysis: AnalysisResult,
     ) -> Optional[GenericLayerConfig]:
         """
-        元素情報から層構造を自動検出
+        Detect the layer structure automatically from the element information
 
-        単純なケース（SiO2/Si等）のみ対応。
-        複雑な場合はNoneを返す（フォールバック）。
+        Handles only simple cases (SiO2/Si and the like).
+        Returns None for complex cases (fallback).
         """
         n_elements = len(elements)
 
-        # 酸化状態から層構造を推定
+        # Infer the layer structure from the oxidation states
         oxide_elements = []
         substrate_elements = []
 
@@ -460,15 +460,15 @@ class ARXPSPipeline:
                 elif elem.oxidation_state == 0:
                     substrate_elements.append((i, elem))
                 else:
-                    # 陰イオン（O, Cl等）
+                    # Anions (O, Cl, ...)
                     pass
 
-        # SiO2/Si のような単純な2層系のみ対応
+        # Only simple two-layer systems like SiO2/Si
         if len(oxide_elements) == 1 and len(substrate_elements) == 1:
             oxide_idx, oxide_elem = oxide_elements[0]
             sub_idx, sub_elem = substrate_elements[0]
 
-            # 酸素を探す
+            # Look for oxygen
             o_idx = None
             for i, elem in enumerate(elements):
                 if elem.symbol == 'O' and elem.oxidation_state and elem.oxidation_state < 0:
@@ -476,7 +476,7 @@ class ARXPSPipeline:
                     break
 
             if o_idx is not None:
-                # SiO2/Si型の設定
+                # SiO2/Si-type settings
                 layer_def = LayerDefinition(
                     name=oxide_elem.compound or f"{oxide_elem.symbol}_oxide",
                     element_indices=[oxide_idx, o_idx],
@@ -496,7 +496,7 @@ class ARXPSPipeline:
                     linked_element_index=o_idx,
                 )
 
-        # 自動検出できない場合
+        # Automatic detection not possible
         return None
 
     def _validate_result(
@@ -505,11 +505,11 @@ class ARXPSPipeline:
         solver_result: Any,
         verbose: bool,
     ) -> ValidationResult:
-        """結果を検証"""
+        """Verify the result"""
         warnings = []
         physical_checks = {}
 
-        # Chi²の計算
+        # Chi²
         if hasattr(solver_result, 'chi2'):
             chi2 = solver_result.chi2
         else:
@@ -518,13 +518,13 @@ class ARXPSPipeline:
         n_data = I_obs.size
         chi2_normalized = chi2 / n_data
 
-        # 収束状況
+        # Convergence
         if hasattr(solver_result, 'success'):
             convergence_ok = solver_result.success
         else:
-            convergence_ok = True  # デフォルトは成功
+            convergence_ok = True  # success by default
 
-        # 物理的妥当性チェック
+        # Physical plausibility
         if hasattr(solver_result, 'layer_thicknesses'):
             thicknesses = solver_result.layer_thicknesses
             physical_checks['thickness_positive'] = all(t > 0 for t in thicknesses)
@@ -533,20 +533,20 @@ class ARXPSPipeline:
                 for t in thicknesses
             )
             if not physical_checks['thickness_positive']:
-                warnings.append("負の膜厚が検出されました")
+                warnings.append("Negative thickness detected")
             if not physical_checks['thickness_reasonable']:
-                warnings.append(f"膜厚が妥当な範囲外 ({self.config.min_thickness}-{self.config.max_thickness} Å)")
+                warnings.append(f"Thickness outside the plausible range ({self.config.min_thickness}-{self.config.max_thickness} Å)")
 
         if hasattr(solver_result, 'D_opt'):
             D = solver_result.D_opt
             physical_checks['concentration_bounded'] = np.all(D >= 0) and np.all(D <= 1)
             physical_checks['sum_to_one'] = np.allclose(D.sum(axis=1), 1.0, atol=0.01)
             if not physical_checks['concentration_bounded']:
-                warnings.append("濃度が0-1の範囲外")
+                warnings.append("Concentration outside 0-1")
             if not physical_checks['sum_to_one']:
-                warnings.append("濃度の合計が1ではない")
+                warnings.append("Concentrations do not sum to 1")
 
-        # ステータス判定
+        # Status
         if not convergence_ok:
             status = ValidationStatus.CONVERGENCE_FAILED
         elif not all(physical_checks.values()) if physical_checks else False:
@@ -555,7 +555,7 @@ class ARXPSPipeline:
             status = ValidationStatus.CHI2_FAILED
         elif chi2_normalized > self.config.chi2_warning_threshold:
             status = ValidationStatus.CHI2_WARNING
-            warnings.append(f"Chi²/n = {chi2_normalized:.4f} (やや高め)")
+            warnings.append(f"Chi²/n = {chi2_normalized:.4f} (somewhat high)")
         else:
             status = ValidationStatus.PASSED
 
@@ -584,41 +584,41 @@ class ARXPSPipeline:
         validation: ValidationResult,
         solver_name: str,
     ) -> List[str]:
-        """提案を生成"""
+        """Generate suggestions"""
         suggestions = []
 
-        # 構造解析からの提案を追加
+        # Suggestions from the structure analysis
         suggestions.extend(analysis.suggestions)
 
-        # 検証結果に基づく提案
+        # Suggestions from the verification
         if validation.status == ValidationStatus.CHI2_FAILED:
-            suggestions.append("Chi²が高い: モデルが適切でない可能性")
+            suggestions.append("High Chi²: the model may be inappropriate")
             if solver_name == "GenericLayerSolver":
-                suggestions.append("SemiFreeSolverで組成の自由度を上げることを検討")
-            suggestions.append("測定角度の追加または見直しを推奨")
+                suggestions.append("Consider more compositional freedom with SemiFreeSolver")
+            suggestions.append("Consider adding or revising the measurement angles")
 
         if validation.status == ValidationStatus.CHI2_WARNING:
-            suggestions.append("フィットは成功していますが、改善の余地があります")
+            suggestions.append("The fit succeeded, but there is room for improvement")
 
         if validation.status == ValidationStatus.CONVERGENCE_FAILED:
-            suggestions.append("初期値を見直して再実行することを推奨")
-            suggestions.append("界面幅の設定を確認してください")
+            suggestions.append("Revise the initial values and run again")
+            suggestions.append("Check the interface-width settings")
 
         if validation.status == ValidationStatus.PHYSICAL_INVALID:
-            suggestions.append("物理的に妥当でない結果: モデルの見直しが必要")
+            suggestions.append("Physically implausible result: the model needs revision")
 
         return suggestions
 
 
 def run_pipeline_demo():
-    """パイプラインのデモンストレーション"""
+    """Pipeline demonstration"""
     from scipy.special import erf
 
     print("=" * 70)
     print("ARXPS Pipeline Demo")
     print("=" * 70)
 
-    # テストデータ生成（SiO2/Si）
+    # Test data (SiO2/Si)
     depth = np.arange(0, 150, 1.0)
     n_depth = len(depth)
     thickness = 30.0
@@ -648,14 +648,14 @@ def run_pipeline_demo():
 
     I_true = tm.forward(D, normalize=True)
 
-    # ノイズ追加
+    # Add noise
     np.random.seed(42)
     noise = 0.02 * np.random.randn(*I_true.shape)
     I_obs = I_true + noise * I_true
     I_obs = np.clip(I_obs, 1e-6, None)
     I_obs = I_obs / I_obs.sum(axis=1, keepdims=True)
 
-    # パイプライン実行
+    # Run the pipeline
     print("\n>>> Case 1: Auto-detection (SiO2/Si)")
     pipeline = ARXPSPipeline()
     result = pipeline.analyze(
@@ -669,7 +669,7 @@ def run_pipeline_demo():
         print(f">>> Estimated thickness: {result.layer_thicknesses[0]:.2f} Å")
         print(f">>> Error: {abs(result.layer_thicknesses[0] - thickness):.2f} Å")
 
-    # 明示的な層構造設定
+    # Explicit layer structure
     print("\n" + "=" * 70)
     print(">>> Case 2: Explicit layer config")
     print("=" * 70)
@@ -687,7 +687,7 @@ def run_pipeline_demo():
             element_indices=[2],
             stoichiometry={2: 1},
         ),
-        initial_thicknesses=[25.0],  # 少しずれた初期値
+        initial_thicknesses=[25.0],  # slightly off initial value
         initial_widths=[5.0],
         linked_element_index=1,
     )

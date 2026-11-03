@@ -1,7 +1,8 @@
 # deppro - ARXPS Depth Profile Analysis Package
 
-MATLABで開発・検証されたARXPS深さプロファイル解析手法のPython再実装。
-脱MATLAB・社会実装を目指すプロジェクト。
+A Python reimplementation of the ARXPS depth-profile analysis method that was developed
+and validated in MATLAB. The project moves the method off MATLAB and toward practical
+use.
 
 ## Quick Start
 
@@ -13,7 +14,7 @@ from deppro import (
     SolverConfig,
 )
 
-# 転送行列の計算
+# Transfer matrix
 tm = TransferMatrix(
     depth=np.arange(0, 200, 1.0),
     step_size=1.0,
@@ -21,7 +22,7 @@ tm = TransferMatrix(
     photon_energy=1486.6,
 )
 
-# GenericLayerSolver（既知構造の膜厚推定）
+# GenericLayerSolver (thickness estimation for a known structure)
 config = GenericLayerConfig(
     layers=[
         LayerDefinition(name="SiO2", element_indices=[0, 1], stoichiometry={0: 1, 1: 2}),
@@ -33,178 +34,190 @@ config = GenericLayerConfig(
 )
 solver = GenericLayerSolver(tm, SolverConfig(method='LLS'), config)
 result = solver.solve(I_obs)
-print(f"膜厚: {result.layer_thicknesses[0]:.2f} Å")
+print(f"Thickness: {result.layer_thicknesses[0]:.2f} Å")
 ```
 
-## Solver体系
+## The solver family
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  GenericLayerSolver                                         │
-│    └─ 任意の層数、膜厚を最適化（組成比も可）、化学量論制約 │
-│    └─ 用途: 既知構造の膜厚推定                             │
-│                                                             │
-│  FreeSolver                                                 │
-│    └─ 全深さで濃度を自由最適化                             │
-│    └─ MEM + Exponential Prior + 束縛条件を指定できる       │
-│    └─ 用途: 構造未知の探索的解析                           │
-│                                                             │
-│  SemiFreeSolver                                             │
-│    └─ 基板: erf関数固定、表面: 自由最適化                  │
-│    └─ 用途: 中間的なアプローチ                             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  GenericLayerSolver                                                 │
+│    └─ any number of layers; optimizes thicknesses (and optionally   │
+│       stoichiometry) under stoichiometric constraints               │
+│    └─ use: thickness estimation for a known structure               │
+│                                                                     │
+│  FreeSolver                                                         │
+│    └─ free optimization of the concentration at every depth         │
+│    └─ MEM + exponential prior + optional constraints                │
+│    └─ use: exploratory analysis of an unknown structure             │
+│                                                                     │
+│  SemiFreeSolver                                                     │
+│    └─ substrate: fixed erf; surface: free optimization              │
+│    └─ use: the intermediate approach                                │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Test-inferred capabilities (src/deppro/tests)
 
-> **2026-07-29 の整理**: `test_*.py` を名乗るが test を持たない研究スクリプト 46 本を
-> 役割別の置き場へ移した。**pytest が収集するのは本物のテストだけ**になっている。
-> 下表の「テスト」と「スクリプト」は別物として読むこと。
+> **Reorganization of 2026-07-29**: 46 research scripts that were named `test_*.py` but
+> defined no tests were moved to homes by role. **pytest now collects only real tests.**
+> Read "tests" and "scripts" in the table below as different things.
 >
-> | 種別 | 置き場 | 走らせ方 |
+> | Kind | Location | How to run |
 > |---|---|---|
-> | テスト | `src/deppro/tests/`, `src/deppro/app/tests/` | `pytest`（既定で slow を除外） |
-> | ベンチマーク | `src/deppro/benchmarks/{accuracy,noise,optimization,regularization,robustness}/` | `python <file>` |
-> | 診断スクリプト | `src/deppro/diagnostics/` | `python <file>` |
+> | Tests | `src/deppro/tests/`, `src/deppro/app/tests/` | `pytest` (slow tests excluded by default) |
+> | Benchmarks | `src/deppro/benchmarks/{accuracy,noise,optimization,regularization,robustness}/` | `python <file>` |
+> | Diagnostic scripts | `src/deppro/diagnostics/` | `python <file>` |
 
-テスト群から読み取れる機能一覧（抜粋）:
+Capabilities that can be read off the tests (excerpt):
 
-- 界面検出の自動推定（勾配/50%交差/変曲点の合意推定）
+- Automatic interface detection (consensus of gradient, 50 % crossing and inflection point)
     - tests/unit/test_interface_detection.py
-- プロファイル比較メトリクス（Wasserstein-1、重心、モーメント、層間比較）
+- Profile comparison metrics (Wasserstein-1, centroid, moments, layer-wise comparison)
     - tests/unit/test_metrics.py
-- パイプライン統合（構造推定 → ソルバ選択 → 膜厚推定）
+- Pipeline integration (structure estimation → solver selection → thickness estimation)
     - tests/integration/test_pipeline.py
-- FreeSolver（モデルフリー）での逆問題再構成と正則化比較
+- Inverse reconstruction with FreeSolver (model-free) and comparison of regularizations
     - tests/solver/test_free_solver.py
-- SemiFreeSolver（半拘束）での層厚推定・正則化比較
+- Layer-thickness estimation with SemiFreeSolver (semi-constrained) and comparison of regularizations
     - tests/solver/test_semifree_solver.py
-- GenericLayerSolver（既知構造の膜厚推定、化学量論制約）
+- GenericLayerSolver (thickness estimation for a known structure, stoichiometric constraints)
     - tests/solver/test_generic_layer_solver.py
-- ノイズ・ロバスト性評価（Poisson/WLS）
+- Noise and robustness evaluation (Poisson / WLS)
     - tests/benchmark/noise/test_wls_poisson.py
     - tests/benchmark/robustness/test_narrow_angle.py
-- 正則化パラメータ選択（L-curve / GCV）
+- Regularization-parameter selection (L-curve / GCV)
     - tests/benchmark/regularization/test_alpha_selection.py
-- MLX バッチソルバの性能回帰
+- Performance regression of the MLX batch solvers
     - tests/benchmark/test_mlx_perf_regression.py
-- リポジトリ衛生（`test_` を名乗るならテストを持つ、の機械的担保）
+- Repository hygiene (a file named `test_` must define tests, enforced mechanically)
     - tests/unit/test_repo_hygiene.py
 
-スクリプト側（テストではない。旧パスは全て `.../test_<名前>.py`）:
+Scripts (not tests; the old paths were all `.../test_<name>.py`):
 
-- 均一混合 vs 層構造の識別 → `diagnostics/uniform_detection.py`
-- 構造推定の挙動確認 → `diagnostics/structure_analyzer.py`
-- 膜厚精度・5層スタック → `diagnostics/thickness_accuracy.py`, `diagnostics/five_layer_free.py`
-- GenericLayer の膜構造 → `diagnostics/film_structure_solver.py`
-- 失敗率 100 trials → `benchmarks/robustness/failure_rate_100trials.py`
-- L1 など正則化比較 → `benchmarks/regularization/l1_regularization.py`
-- Numba JIT・ソルバ比較 → `benchmarks/optimization/numba_jit.py`, `benchmarks/accuracy/solver_comparison.py`
+- Uniform mixture versus layered structure → `diagnostics/uniform_detection.py`
+- Behavior of the structure estimator → `diagnostics/structure_analyzer.py`
+- Thickness accuracy and a 5-layer stack → `diagnostics/thickness_accuracy.py`, `diagnostics/five_layer_free.py`
+- Film structure with GenericLayer → `diagnostics/film_structure_solver.py`
+- Failure rate over 100 trials → `benchmarks/robustness/failure_rate_100trials.py`
+- Comparison of regularizations such as L1 → `benchmarks/regularization/l1_regularization.py`
+- Numba JIT and solver comparison → `benchmarks/optimization/numba_jit.py`, `benchmarks/accuracy/solver_comparison.py`
 
-注意: ベンチマーク・診断系は探索的な検証スクリプトで、実データ適用時は条件依存。
+Note: the benchmark and diagnostic scripts are exploratory checks. Their results depend
+on conditions when applied to measured data.
 
-### ソルバー比較
+### Solver comparison
 
-| ソルバー | 自由度 | 最適化する量 | 用途 |
+| Solver | Degrees of freedom | What is optimized | Use |
 |---------|--------|-------------|------|
-| `GenericLayerSolver` | 低 | 各層の膜厚（`optimize_stoichiometry=True` で組成比も） | 層構造が既知の膜 |
-| `FreeSolver` | 高 | 全深さ・全元素の濃度 | 構造が未知の膜の探索 |
-| `SemiFreeSolver` | 中 | free 元素の深さごとの濃度と、erf で表した基板界面の位置 | 基板界面を 1 つの erf で表せる膜（多層膜を含む） |
+| `GenericLayerSolver` | low | the thickness of each layer (and the stoichiometry with `optimize_stoichiometry=True`) | films with a known layer structure |
+| `FreeSolver` | high | the concentration of every element at every depth | exploring a film of unknown structure |
+| `SemiFreeSolver` | medium | the concentration of the free elements at each depth, and the position of the substrate interface expressed as an erf | films whose substrate interface is one erf (multilayers included) |
 
-`SemiFreeSolver` は、公表した 2 本の論文（JVST A, doi:10.1116/6.0005585; SIA, doi:10.1002/sia.70123）で
-C/Al₂O₃/TiO₂/Si の多層膜の解析に使った（L1 正則化、界面幅は 5 Å FWHM に固定）。
+`SemiFreeSolver` was used in the two published papers (JVST A, doi:10.1116/6.0005585;
+SIA, doi:10.1002/sia.70123) for the analysis of C/Al₂O₃/TiO₂/Si multilayers (L1
+regularization, interface width fixed at 5 Å FWHM).
 
-## 界面幅の扱い
+## Handling of the interface width
 
-角度分解の強度は界面の位置と幅の両方に同じ指数減衰を通して依存し、位置のほうがはるかに強く決まる。
-このため、界面幅は推定せず固定して使う（`optimize_abruptness=False` など）。固定した幅は測定値ではなく
-正則化の選択である。この扱いの説明と、JVST の解析での幅の変化（2.5–10 Å）に対する感度は
-JVST A, doi:10.1116/6.0005585 の §III.A にある。
+The angle-resolved intensity depends on both the position and the width of an
+interface through the same exponential attenuation, and the position is determined
+far more strongly. The interface width is therefore not estimated but fixed
+(`optimize_abruptness=False` and the like). The fixed width is a regularization choice,
+not a measurement. The explanation of this treatment, and the sensitivity to the width
+(2.5–10 Å) in the JVST analysis, are in §III.A of JVST A, doi:10.1116/6.0005585.
 
-## 例と機能の説明
+## Examples and feature descriptions
 
-### FreeSolver の例（`src/deppro/examples/freesolver_recommended.py`）
+### FreeSolver example (`src/deppro/examples/freesolver_recommended.py`)
 
-合成の 3 層膜（Al₂O₃ 0–15 Å / SiO₂ 15–45 Å / Si、erf 界面 σ = 3 Å、深さ格子 0–98 Å・2 Å 刻み）、
-角度 0/30/45/60°、Al Kα、強度に 2% の相対ガウスノイズ（seed 42。加えたあと 1e-6 で下限を切り、角度ごとに規格化）、
-`SolverConfig.recommended(alpha=0.0003)`（MEM）、
-Exponential Prior、束縛条件。RMSE は全深さ・全元素の濃度の RMSE。
+A synthetic 3-layer film (Al₂O₃ 0–15 Å / SiO₂ 15–45 Å / Si, erf interfaces with σ = 3 Å,
+depth grid 0–98 Å in 2 Å steps), angles 0/30/45/60°, Al Kα, 2 % relative Gaussian
+noise on the intensities (seed 42; clipped at 1e-6 after adding, then normalized per
+angle), `SolverConfig.recommended(alpha=0.0003)` (MEM), exponential prior, and
+constraints. RMSE is the RMSE of the concentrations over all depths and elements.
 
-| 化合物の表 | RMSE | χ² | Al³⁺ (0 Å) | Si⁰ (80 Å) | O²⁻ (0 Å) |
+| Compound table | RMSE | χ² | Al³⁺ (0 Å) | Si⁰ (80 Å) | O²⁻ (0 Å) |
 |---|---|---|---|---|---|
-| 真値 | – | – | 0.400 | 1.000 | 0.600 |
-| toyomacro v0.3.1 同梱（既定） | 0.1291 | 1.67e-03 | 0.385 | 0.890 | 0.602 |
-| `DEPPRO_COMPOUND_TABLE_PATH` で外部の `CompoundTable.csv` | 0.1210 | 1.38e-03 | 0.387 | 0.912 | 0.602 |
+| Truth | – | – | 0.400 | 1.000 | 0.600 |
+| Bundled with toyomacro v0.3.1 (default) | 0.1291 | 1.67e-03 | 0.385 | 0.890 | 0.602 |
+| External `CompoundTable.csv` via `DEPPRO_COMPOUND_TABLE_PATH` | 0.1210 | 1.38e-03 | 0.387 | 0.912 | 0.602 |
 
-測定: 2026-10-04、Python 3.12.11 / NumPy 2.3.3 / SciPy 1.16.3。結果は化合物の表の供給元で変わる。
+Measured 2026-10-04 with Python 3.12.11 / NumPy 2.3.3 / SciPy 1.16.3. The result
+depends on the source of the compound table.
 
-以前ここにあった「ほぼ完璧な再構成（RMSE 0.056、2026-01-29）」は撤回した。このリポジトリの最初の版
-（2026-07-16）の同じ例でも、同じ CSV の表で RMSE 0.1210 になり、いまの版と同じ値だった。つまり
-2026-07-16 以降のコード変更は 0.056 との差の原因ではない。0.056 が書かれた 2026-01-29 時点のコードと
-条件は確かめられず、このリポジトリの中には記録されていない。
+The "near-perfect reconstruction (RMSE 0.056, 2026-01-29)" that used to be stated
+here has been withdrawn. The same example in the first version of this repository
+(2026-07-16), with the same CSV table, also gives RMSE 0.1210, the same value as the
+current version. Code changes since 2026-07-16 are therefore not the cause of the
+difference from 0.056. The code and conditions of 2026-01-29, when 0.056 was written
+down, cannot be verified and are not recorded in this repository.
 
-**この例の設定**:
-1. **Exponential Prior** (Livesey 1994): `d_penetration = λ_substrate`
-2. **MEM正則化**: α = 0.0003（`SolverConfig.recommended()` の既定値。2% ノイズの合成例で選んだ値で、α を振った比較はいまの版では確かめていない。試料とノイズに応じて調整する）
-3. **束縛条件**: `use_sum_constraint=True`, `use_charge_constraint=True`
+**Settings of this example**:
+1. **Exponential prior** (Livesey 1994): `d_penetration = λ_substrate`
+2. **MEM regularization**: α = 0.0003 (the default of `SolverConfig.recommended()`. The
+   value was chosen on the synthetic example with 2 % noise; a sweep over α has not been
+   checked in the current version. Adjust it to the sample and the noise)
+3. **Constraints**: `use_sum_constraint=True`, `use_charge_constraint=True`
 
-### 可変組成膜
+### Films of variable composition
 
-`LayerDefinition`に`stoichiometry_bounds`を指定することで、組成比を最適化パラメータとして扱える
-（酸素欠損の SiOx、窒化した層など）。
+Giving `stoichiometry_bounds` to a `LayerDefinition` makes the stoichiometry an
+optimization parameter (oxygen-deficient SiOx, nitrided layers, and so on).
 
-**使用例**:
+**Example**:
 ```python
-# 酸素欠損SiOxの解析
+# Oxygen-deficient SiOx
 layer = LayerDefinition(
     name="SiOx",
     element_indices=[0, 1],  # Si, O
-    stoichiometry={0: 1, 1: 2.0},  # 初期値: SiO2
-    stoichiometry_bounds={1: (1.5, 2.0)},  # O比を1.5-2.0で最適化
+    stoichiometry={0: 1, 1: 2.0},  # initial value: SiO2
+    stoichiometry_bounds={1: (1.5, 2.0)},  # optimize the O ratio within 1.5-2.0
 )
 
 config = GenericLayerConfig(
     layers=[layer],
     substrate=...,
-    optimize_stoichiometry=True,  # 組成最適化を有効化
+    optimize_stoichiometry=True,  # enable stoichiometry optimization
 )
 ```
 
-**結果の確認**:
+**Inspecting the result**:
 ```python
 result = solver.solve(I_obs)
-print(result.layer_stoichiometries)  # 各層の最適化された組成比
-print(result.assumptions)            # 使用した仮定（可視化）
-print(result.summary())              # サマリー出力
+print(result.layer_stoichiometries)  # optimized stoichiometry of each layer
+print(result.assumptions)            # the assumptions used (for display)
+print(result.summary())              # summary
 ```
 
-**注意**: 組成比を可変にするときも、界面幅は固定して使う（上の「界面幅の扱い」）。
+**Note**: the interface width stays fixed even when the stoichiometry is variable
+(see "Handling of the interface width" above).
 
-### 基板自動検出
+### Automatic substrate detection
 
-`StructureAnalyzer.detect_substrate()` で角度分解データから基板を自動検出:
+`StructureAnalyzer.detect_substrate()` detects the substrate from angle-resolved data:
 
-**検出アルゴリズム**:
-1. **Slope法**: `d(ln I)/d(1/cosθ)` が最も負の元素 = 最も深い（基板）
-2. **Ratio法**: `I(60°)/I(0°)` が最も小さい元素 = 最も深い
-3. **化合物基板**: 類似した傾きを持つ元素をグループ化
+**Detection algorithms**:
+1. **Slope method**: the element with the most negative `d(ln I)/d(1/cosθ)` is the deepest (the substrate)
+2. **Ratio method**: the element with the smallest `I(60°)/I(0°)` is the deepest
+3. **Compound substrate**: elements with similar slopes are grouped
 
-**フォールバック条件**:
-- 全元素の角度依存性が類似 → 均一混合の可能性
-- 全元素が正の傾き → 基板信号なし（厚い膜の可能性）
+**Fallback conditions**:
+- all elements have a similar angle dependence → possibly a uniform mixture
+- all elements have a positive slope → no substrate signal (possibly a thick film)
 
-## 制約体系
+## Constraint system
 
-SemiFreeSolverは以下の制約を**代数的に**組み込み：
+SemiFreeSolver builds the following constraints in **algebraically**:
 
-| 制約 | 数式 | 実装 |
+| Constraint | Formula | Implementation |
 |------|------|------|
-| 濃度合計 | Σ D_e = 1 | 代数計算 |
-| 電荷保存 | Σ (酸化数 × D_e) = 0 | `free_linked_const` |
+| Sum of concentrations | Σ D_e = 1 | algebraic |
+| Charge conservation | Σ (oxidation state × D_e) = 0 | `free_linked_const` |
 
-## 使用例
+## Usage examples
 
-### GenericLayerSolver（多層膜）
+### GenericLayerSolver (multilayer)
 
 ```python
 config = GenericLayerConfig(
@@ -222,98 +235,99 @@ config = GenericLayerConfig(
 solver = GenericLayerSolver(tm, SolverConfig(method='LLS'), config)
 ```
 
-### FreeSolver（`SolverConfig.recommended()` を使う例）
+### FreeSolver (using `SolverConfig.recommended()`)
 
 ```python
 from deppro import (
     FreeSolver, SolverConfig, create_exponential_prior, IMFP
 )
 
-# 基板のIMFP計算
+# IMFP of the substrate
 imfp_si = IMFP.tpp2m(KE=1383, Nv=4, density=2.33, Aw=28.09, Eg=1.1)
 
-# Exponential Prior (Livesey 1994)
+# Exponential prior (Livesey 1994)
 D_prior = create_exponential_prior(
     depth, n_elements=4, substrate_idx=2,
-    d_penetration=imfp_si  # 基板のIMFPを使用
+    d_penetration=imfp_si  # use the IMFP of the substrate
 )
 
-# MEM + α=0.0003（既定値）+ 束縛条件
+# MEM + α=0.0003 (default) + constraints
 config = SolverConfig.recommended()
 
-# ソルバー実行
+# Run the solver
 solver = FreeSolver(tm, config, D_prior, elements=elements)
 result = solver.solve(I_obs)
 ```
 
 ### SemiFreeSolver
 
-#### 設定例（多層膜、L1 正則化）
+#### Configuration example (multilayer, L1 regularization)
 
-下の値は書き方の例で、論文の解析で使った値ではない。JVST/SIA の解析の設定（α と目的関数の書き方）は
-JVST A, doi:10.1116/6.0005585 の §III.A にある。
+The values below show the form of the call; they are not the values used in the
+papers' analyses. The settings of the JVST/SIA analyses (α and the form of the
+objective) are in §III.A of JVST A, doi:10.1116/6.0005585.
 
 ```python
 from deppro import SemiFreeSolver, SemiFreeSolverConfig, SolverConfig
 
 config = SolverConfig(
-    method='L1',      # L1正則化（スパース化）
-    alpha=1.0,        # 正則化の強さ（例の値）。データとノイズに応じて調整する
+    method='L1',      # L1 regularization (sparsity)
+    alpha=1.0,        # regularization strength (example value); adjust to the data and the noise
     max_iter=100,
 )
 
 semi_free_config = SemiFreeSolverConfig(
     thickness_init=70.0,
-    abruptness_init=5.0,         # 界面幅（FWHM、Å）。既定では固定（optimize_abruptness=False）
+    abruptness_init=5.0,         # interface width (FWHM, Å); fixed by default (optimize_abruptness=False)
     thickness_bounds=(10.0, 90.0),
     free_indices=[0, 1, 2, 3],   # C, Al, Ti, Si(ox)
-    linked_indices=[4],          # O（電荷保存から決定）
+    linked_indices=[4],          # O (determined by charge conservation)
     substrate_indices=[5],       # Si
 )
 
 solver = SemiFreeSolver(
     tm, config, semi_free_config,
     elements=elements,
-    D_prior=None,     # 事前分布なし（下限 min_conc の一様値）。L1 項はほぼ sum|D| になる
-    use_numba=True,   # Numba JIT を使う
+    D_prior=None,     # no prior (a uniform value at the lower bound min_conc); the L1 term is then close to sum|D|
+    use_numba=True,   # use the Numba JIT
 )
 result = solver.solve(I_obs)
 ```
 
-#### 基本設定（単層膜向け）
+#### Basic configuration (single layer)
 
 ```python
 from deppro import SemiFreeSolver, SemiFreeSolverConfig
 
 config = SemiFreeSolverConfig(
     thickness_init=30.0,
-    abruptness_init=5.0,        # 界面幅は固定して使う（上の「界面幅の扱い」）
+    abruptness_init=5.0,        # the interface width is kept fixed (see "Handling of the interface width" above)
     optimize_abruptness=False,
-    free_indices=[0],           # 自由最適化
-    linked_indices=[1],         # 電荷保存から決定
-    substrate_indices=[2],      # 基板（erf関数）
+    free_indices=[0],           # optimized freely
+    linked_indices=[1],         # determined by charge conservation
+    substrate_indices=[2],      # substrate (erf)
 )
 solver = SemiFreeSolver(tm, SolverConfig(method='LLS'), config)
 ```
 
-### SemiFreeSolver + Stoichiometric Mode（NON/ONO解析）
+### SemiFreeSolver + stoichiometric mode (NON / ONO analysis)
 
-NON（Si₃N₄/SiO₂/Si₃N₄/Si）やONO構造のように、O/Nが独立に変動する系では
-`stoichiometric_mode='stoichiometric'` を使用。
+For systems in which O and N vary independently, such as NON (Si₃N₄/SiO₂/Si₃N₄/Si)
+or ONO structures, use `stoichiometric_mode='stoichiometric'`.
 
 ```python
 from deppro import SemiFreeSolver, SemiFreeSolverConfig
 
-# NON/ONO解析用設定
-# 元素インデックス: 0=Si-O, 1=O, 2=N, 3=Si-B
+# Configuration for NON / ONO analysis
+# Element indices: 0=Si-O, 1=O, 2=N, 3=Si-B
 config = SemiFreeSolverConfig(
-    free_indices=[1, 2],       # O, N を独立に最適化
-    linked_indices=[],          # linkedなし (charge_balanceと異なる)
+    free_indices=[1, 2],       # optimize O and N independently
+    linked_indices=[],          # no linked elements (unlike charge_balance)
     substrate_indices=[3],      # Si-B
 
-    stoichiometric_mode='stoichiometric',  # NON/ONO 用
+    stoichiometric_mode='stoichiometric',  # for NON / ONO
     stoichiometric_rules={
-        0: ([1, 2], [0.5, 0.75])  # Si-O = 0.5*D_O + 0.75*D_N (化学量論)
+        0: ([1, 2], [0.5, 0.75])  # Si-O = 0.5*D_O + 0.75*D_N (stoichiometry)
     },
     stoichiometric_constraint_coeffs=[1.5, 1.75],  # (3/2)*O + (7/4)*N = 1 - SiB
 
@@ -324,31 +338,31 @@ solver = SemiFreeSolver(tm, SolverConfig(method='LLS'), config)
 result = solver.solve(I_obs)
 ```
 
-### Stoichiometric Mode 選択ガイド
+### Choosing the stoichiometric mode
 
-| 系 | モード | 理由 |
+| System | Mode | Reason |
 |---|--------|------|
-| SiO₂/Si | `charge_balance`（デフォルト） | O/Si比固定 |
-| C/Al₂O₃/TiO₂/SiO₂/Si | `charge_balance` | 各層は固定組成 |
-| NON（Si₃N₄/SiO₂/Si₃N₄） | `stoichiometric` | O/Nが異なる深さで独立変動 |
-| ONO（SiO₂/Si₃N₄/SiO₂） | `stoichiometric` | O/Nが異なる深さで独立変動 |
-| SiOx酸素欠損 | `stoichiometric` | O比が深さで変化 |
-| SiGe勾配 | `stoichiometry_bounds`推奨 | 組成が連続的に変化 |
+| SiO₂/Si | `charge_balance` (default) | fixed O/Si ratio |
+| C/Al₂O₃/TiO₂/SiO₂/Si | `charge_balance` | each layer has a fixed composition |
+| NON (Si₃N₄/SiO₂/Si₃N₄) | `stoichiometric` | O and N vary independently at different depths |
+| ONO (SiO₂/Si₃N₄/SiO₂) | `stoichiometric` | O and N vary independently at different depths |
+| Oxygen-deficient SiOx | `stoichiometric` | the O ratio changes with depth |
+| Graded SiGe | `stoichiometry_bounds` recommended | the composition changes continuously |
 
-**自動検出の限界**:
-- `StructureAnalyzer.use_stoichiometric_mode` は参考情報
-- 多層酸化物（各層固定組成）で誤検出の可能性あり
-- **系の特性を理解した上でユーザーが明示的に選択することを推奨**
+**Limits of automatic detection**:
+- `StructureAnalyzer.use_stoichiometric_mode` is advisory
+- multilayer oxides (fixed composition per layer) can be misdetected
+- **choose the mode explicitly, based on an understanding of the system**
 
-**識別のポイント**:
-1. **同一元素ペア（O/N）が異なる深さで変動** → `stoichiometric`
-2. **異なる化合物が層ごとに存在（各層内は固定）** → `charge_balance`
+**How to tell them apart**:
+1. **the same pair of elements (O/N) varies at different depths** → `stoichiometric`
+2. **different compounds in different layers (fixed within each layer)** → `charge_balance`
 
-**モードの選び方**:
-1. 化学シフトで区別可能 → 別元素として扱う → GenericLayerSolver
-2. 区別不可 + 層間で組成異なる → stoichiometric_mode
+**How to choose a mode**:
+1. distinguishable by chemical shift → treat as separate elements → GenericLayerSolver
+2. not distinguishable, and the composition differs between layers → stoichiometric_mode
 
-### ARXPSPipeline（自動解析）
+### ARXPSPipeline (automatic analysis)
 
 ```python
 from deppro import ARXPSPipeline
@@ -360,10 +374,10 @@ result = pipeline.analyze(
 )
 
 if result.success:
-    print(f"膜厚: {result.layer_thicknesses}")
+    print(f"Thicknesses: {result.layer_thicknesses}")
 ```
 
-### 自動基板検出 + FreeSolver
+### Automatic substrate detection + FreeSolver
 
 ```python
 from deppro import (
@@ -371,132 +385,136 @@ from deppro import (
     create_exponential_prior, IMFP
 )
 
-# Step 1: 基板自動検出
+# Step 1: detect the substrate
 analyzer = StructureAnalyzer()
 result = analyzer.analyze_with_substrate_detection(I_obs, angles, element_labels)
 
 if result.substrate_detection.has_substrate:
     substrate_idx = result.substrate_detection.substrate_indices[0]
-    print(f"検出された基板: {element_labels[substrate_idx]}")
+    print(f"Detected substrate: {element_labels[substrate_idx]}")
 
-    # Step 2: IMFPと Exponential Prior
+    # Step 2: IMFP and exponential prior
     imfp_substrate = IMFP.tpp2m(KE=1383, Nv=4, density=2.33, Aw=28.09, Eg=1.1)
     D_prior = create_exponential_prior(
         depth, n_elements=4, substrate_idx=substrate_idx,
         d_penetration=imfp_substrate
     )
 
-    # Step 3: FreeSolver実行
+    # Step 3: run FreeSolver
     solver = FreeSolver(tm, SolverConfig.recommended(), D_prior, elements)
     result = solver.solve(I_obs)
 else:
     print(f"⚠️ {result.substrate_detection.fallback_reason}")
-    print("substrate_idxを手動指定してください")
+    print("Give substrate_idx explicitly")
 ```
 
 ## Module Structure
 
 ```
 deppro/
-├── __init__.py              # パッケージエクスポート
-├── depth_profile.py         # 深さプロファイル生成
-├── transfer_matrix.py       # 転送行列、角度分解計算
-├── imfp.py                  # TPP-2M IMFP計算
-├── inverse_solver.py        # 逆問題ソルバー群
-├── structure_analyzer.py    # 自動構造解析
-├── pipeline.py              # 自動解析パイプライン
-├── benchmark.py             # ベンチマークシステム
-├── cli_depth.py             # CLIツール
-└── tests/                   # テストスイート
+├── __init__.py              # package exports
+├── depth_profile.py         # depth-profile generation
+├── transfer_matrix.py       # transfer matrix, angle-resolved calculation
+├── imfp.py                  # TPP-2M IMFP calculation
+├── inverse_solver.py        # the inverse solvers
+├── structure_analyzer.py    # automatic structure analysis
+├── pipeline.py              # automatic analysis pipeline
+├── benchmark.py             # benchmark system
+├── cli_depth.py             # CLI tool
+└── tests/                   # test suite
 ```
 
 ## CLI Commands
 
 ```bash
-# 逆問題を解く
+# Solve the inverse problem
 python -m deppro.cli_depth solve --input intensity.csv --config model.yaml
 
-# 設定ファイルテンプレート生成
+# Generate a configuration-file template
 python -m deppro.cli_depth init-config --model multilayer --output config.yaml
 
-# ベンチマーク
+# Benchmark
 python -m deppro.benchmark --quick
 ```
 
-## 高角度の注意点
+## Notes on high emission angles
 
-- 放出角が大きいほど基板からの信号は弱くなる。膜が IMFP に比べて厚いと、75° 付近より上では
-  ほぼゼロになる（どの角度で弱くなるかは膜厚と IMFP で決まる）
-- SemiFreeSolver は既定では基板の信号で規格化するので、基板の信号が弱い角度を含めると不安定になりうる
+- The larger the emission angle, the weaker the substrate signal. For a film that is
+  thick compared with the IMFP, the signal is close to zero above about 75° (the angle
+  at which it fades depends on the thickness and the IMFP)
+- SemiFreeSolver normalizes by the substrate signal by default, so including angles
+  with a weak substrate signal can make it unstable
 
-## 正則化手法
+## Regularization methods
 
-### FreeSolver の設定
+### FreeSolver configuration
 
 ```python
-# プリセット
-config = SolverConfig.recommended()  # MEM + α=0.0003（既定値）+ 束縛条件
+# Preset
+config = SolverConfig.recommended()  # MEM + α=0.0003 (default) + constraints
 
-# または手動設定
+# Or by hand
 config = SolverConfig(
     method='MEM',
-    alpha=0.0003,              # recommended() の既定値。試料とノイズに応じて調整する
+    alpha=0.0003,              # the default of recommended(); adjust to the sample and the noise
     use_sum_constraint=True,   # Σconc = 1
-    use_charge_constraint=True # 電荷保存
+    use_charge_constraint=True # charge conservation
 )
 ```
 
-**注意**: LLSはαを使わないのでprior項が効かない。Exponential Priorを使うにはMEMが必要。
+**Note**: LLS does not use α, so the prior term has no effect. The exponential prior
+needs MEM.
 
-### 正則化手法比較
+### Comparison of regularization methods
 
-| 手法 | 特徴 |
+| Method | Character |
 |------|------|
-| `LLS` | 正則化なし（α を使わない） |
-| `L1` | スパースな解（sum\|D − D_prior\| の最小化） |
-| `L2` | 滑らかな解 |
-| `MEM` | エントロピー最大化。Exponential Prior と組み合わせる |
+| `LLS` | no regularization (α unused) |
+| `L1` | sparse solutions (minimizes sum\|D − D_prior\|) |
+| `L2` | smooth solutions |
+| `MEM` | maximum entropy; combined with the exponential prior |
 
-α の既定値は `SolverConfig` で 1.0、`SolverConfig.recommended()` で 0.0003。
-どちらもすべての試料に合う値ではないので、データとノイズに応じて調整する。
+The default α is 1.0 in `SolverConfig` and 0.0003 in `SolverConfig.recommended()`.
+Neither suits every sample; adjust it to the data and the noise.
 
-## ノイズモデル
+## Noise models
 
-### Gaussian vs Poisson ノイズの比較
+### Gaussian versus Poisson noise
 
-⚠️ **Poisson X%とGaussian X%は直接比較できない**
+⚠️ **Poisson X % and Gaussian X % are not directly comparable**
 
-| ノイズ | 定義 | 低強度での挙動 |
+| Noise | Definition | Behavior at low intensity |
 |--------|------|----------------|
-| Gaussian X% | 全強度で一定σ=X% | 一定 |
-| Poisson X% | **最大強度I=1.0でのみ**σ=X% | I=0.1で σ≈3X% |
+| Gaussian X % | σ = X % at every intensity | constant |
+| Poisson X % | σ = X % **only at the maximum intensity I = 1.0** | σ ≈ 3X % at I = 0.1 |
 
-**RMS等価での比較**（比は強度の分布で変わる。下の値は目安）:
-- Poisson 0.5% ≈ Gaussian 2%（RMSベース）
-- Poisson 2% ≈ Gaussian 8%（RMSベース）
+**RMS-equivalent comparison** (the ratio depends on the distribution of intensities;
+the values below are a guide):
+- Poisson 0.5 % ≈ Gaussian 2 % (RMS basis)
+- Poisson 2 % ≈ Gaussian 8 % (RMS basis)
 
-**推奨**: ベンチマーク結果の比較時はRMS等価ノイズを使用
+**Recommendation**: compare benchmark results at RMS-equivalent noise
 
-## 物理的背景
+## Physical background
 
-### TPP-2M IMFP計算
+### TPP-2M IMFP calculation
 
 ```python
 from deppro import IMFP
 
 imfp = IMFP.tpp2m(
-    KE=1383.1,      # 運動エネルギー (eV)
-    Nv=16,          # 価電子数
+    KE=1383.1,      # kinetic energy (eV)
+    Nv=16,          # number of valence electrons
     density=2.2,    # g/cm³
-    Aw=60.08,       # 分子量 (g/mol)
-    Eg=9.0,         # バンドギャップ (eV)
+    Aw=60.08,       # molecular weight (g/mol)
+    Eg=9.0,         # band gap (eV)
 )
-# → 38.6 Å（SiO2、TPP-2M の式の値）
+# → 38.6 Å (SiO2, the value of the TPP-2M formula)
 ```
 
-### 参考材料パラメータ
+### Reference material parameters
 
-| 化合物 | 密度 | 分子量 | 価電子数 | バンドギャップ |
+| Compound | Density | Molecular weight | Valence electrons | Band gap |
 |--------|------|--------|----------|---------------|
 | SiO2 | 2.2 | 60.08 | 16 | 9.0 eV |
 | Si | 2.33 | 28.09 | 4 | 1.1 eV |
@@ -507,6 +525,6 @@ imfp = IMFP.tpp2m(
 - scipy
 - matplotlib (for visualization)
 
-## 関連ファイル
+## Related files
 
-- `../tests/`: テストスイート
+- `../tests/`: test suite

@@ -1,6 +1,6 @@
-"""場面 — stack ごとの FeatureVector 変調。
+"""Scene: FeatureVector modulation per stack.
 
-MATLAB 側の対応（`+deppro/+simulation/SimulationUpdater.m::updateFeatureVector`）:
+MATLAB counterpart (`+deppro/+simulation/SimulationUpdater.m::updateFeatureVector`):
 
     FV = FV0
     bottom layer  (Linear | Exponential | Trigonometric)   -> FV(sk, dx, dy)
@@ -8,11 +8,11 @@ MATLAB 側の対応（`+deppro/+simulation/SimulationUpdater.m::updateFeatureVec
     interf redox  (Linear | Exponential | Trigonometric)   -> FV(sk, dxdy, dxdydt)
     etch/grow     (Linear | Exponential | Trigonometric)   -> FV(sk, dxdy, dxdydt)
 
-**場面は flat な stack 番号 sk の関数**で、三重ループもフレーム境界も無い。
-`dx`,`dy` は模様の周期を決めるためだけに使われる。したがって `stack` が
-`nx*ny` の倍数である必要は無く、素数でもそのまま定義される。
+**A scene is a function of the flat stack number sk**; there is no triple loop and no frame boundary.
+`dx`,`dy` are used only to set the period of the pattern. So `stack` need not be a multiple
+of `nx*ny`; a prime number is defined just as well.
 
-FeatureVector の並び（1-based, MATLAB）:
+FeatureVector order (1-based, MATLAB):
     col 1        thickness
     col 2        abruptness
     col 3k       position of the k-th free component
@@ -34,19 +34,19 @@ _ETCH = ("Linear", "Exponential", "Trigonometric")
 
 @dataclass(frozen=True)
 class SceneFlags:
-    """cfg の分布関数の選択。空文字列 / None は「その群を適用しない」。"""
+    """Choice of distribution functions in cfg. An empty string / None means "do not apply that group"."""
 
     bottom_layer: Optional[str] = None
-    top_layer: Optional[str] = None       # "Checkered" のみ
+    top_layer: Optional[str] = None       # "Checkered" only
     interf_redox: Optional[str] = None
     etch_grow: Optional[str] = None
 
     def validate(self) -> None:
-        """未移植の分岐は**ここで断る**。既存の分岐へ黙って置き換えない。
+        """Unported branches are **refused here**. They are not silently replaced by an existing branch.
 
-        MATLAB 側は 3 群 × 3 形（Linear/Exponential/Trigonometric）を持つが、
-        この producer が写したのは各群 1 つだけ。名前として存在することと、
-        ここで作れることは別なので、両方を区別してメッセージに出す。
+        The MATLAB side has 3 groups × 3 shapes (Linear/Exponential/Trigonometric), but this
+        producer ported only one per group. Existing as a name and being buildable here are
+        different things, so the message tells them apart.
         """
         for name, value, known, table in (
             ("bottom_layer", self.bottom_layer, _BOTTOM, _BOTTOM_FN),
@@ -83,9 +83,9 @@ def distrib_bottom_layer_trigonometric(fv: np.ndarray, sk: np.ndarray, dx: int, 
 
 
 def distrib_top_layer_checkered(fv: np.ndarray, sk: np.ndarray, dx: int, dy: int) -> np.ndarray:
-    """市松。free の最後から 2 番目と最後の **height** を入れ替える。
+    """Checkerboard. Swaps the **height** of the second-to-last and last free elements.
 
-    周期は速い方向に `dx/6`、遅い方向に `dx*dy/6`（= 6 ブロック/辺）。
+    The period is `dx/6` in the fast direction and `dx*dy/6` in the slow one (= 6 blocks per side).
     """
     out = fv.copy()
     nfree = _n_free(fv)
@@ -136,10 +136,10 @@ _ETCH_FN = {"Linear": phenom_etch_grow_linear}
 def feature_vector_for_stacks(
     fv0: np.ndarray, sk: np.ndarray, nx: int, ny: int, time_size: int, flags: SceneFlags
 ) -> np.ndarray:
-    """flat な stack 番号 `sk`（1-based）に対する FeatureVector を返す。
+    """Return the FeatureVector for the flat stack number `sk` (1-based).
 
-    `sk` はベクトルでよい。MATLAB 側も sk をベクトルで扱う実装なので、
-    chunk 分割しても結果は変わらない（stack ごとに独立）。
+    `sk` may be a vector. The MATLAB side also handles sk as a vector, so chunking
+    does not change the result (stacks are independent).
     """
     flags.validate()
     sk = np.asarray(sk, dtype=float).ravel()
@@ -167,27 +167,27 @@ def feature_vector_for_stacks(
     return fv
 
 
-#: 時間現象が向きを変えるフレーム間隔。`+deppro/+simulation` の 3 形すべてで同じ。
-#:   *Linear / *Exponential : id = ~mod(floor((sk-1)/(nx*ny*dt)),2) の偶奇が変わるところ
-#:   *Trigonometric         : (1-cos(pi*f/dt))/2 が折り返すところ
-#: どちらも 0 起点フレーム f = dt, 2dt, ... （1-based では dt+1, 2dt+1, ...）。
+#: Frame interval at which a temporal phenomenon reverses direction. Same for all 3 shapes in `+deppro/+simulation`.
+#:   *Linear / *Exponential : where the parity of id = ~mod(floor((sk-1)/(nx*ny*dt)),2) changes
+#:   *Trigonometric         : where (1-cos(pi*f/dt))/2 turns around
+#: In both, 0-based frames f = dt, 2dt, ... (1-based: dt+1, 2dt+1, ...).
 TURNING_RULE = "per-phenomenon direction reverses at 1-based frame dt+1, 2dt+1, ... (dt = timeSize)"
 
-#: 合成後の極値を数える差分ラグ。`*Linear` は「2 フレームごとに 1 段」の階段なので
-#: ラグ 1 の符号では全フレームが折り返しに見える。**素朴な sign(diff) を使わない。**
+#: Difference lag for counting extrema after composition. `*Linear` is a staircase of one step per
+#: 2 frames, so with lag 1 every frame looks like a turning point. **Do not use a naive sign(diff).**
 _EXTREMA_LAG = 2
 
 
 def scene_timing(fv: np.ndarray, nx: int, ny: int, n_stack: int, time_size: int,
                  column: int = 0) -> dict:
-    """時間軸の記録。**各変調の反転**と**合成後の山谷**を別項目として返す。
+    """Record of the time axis. Returns **the reversal of each modulation** and **the peaks and troughs after composition** as separate items.
 
-    前者は規則から決まる（`TURNING_RULE`）。後者は現象の和なので一致しない —
-    例えば etch(下降) + redox(上昇) では、各現象の反転は規則どおりのフレームだが、
-    合成した膜厚の極値は別のフレームに来ることがある。**混同しないこと。**
+    The former follows from the rule (`TURNING_RULE`). The latter is the sum of the phenomena and does not coincide:
+    with etch (falling) + redox (rising), for example, each phenomenon reverses at the frame the rule gives,
+    but the extremum of the composed thickness can fall on another frame. **Do not confuse the two.**
 
-    `column` は見る FeatureVector 列（既定 0 = thickness）。各フレームの先頭画素だけを
-    見るので、空間変調は固定されて時間方向だけが残る。
+    `column` is the FeatureVector column looked at (default 0 = thickness). Only the first pixel of
+    each frame is used, so the spatial modulation is fixed and only the time direction remains.
     """
     fv = np.atleast_2d(np.asarray(fv, dtype=float))
     dxdy = int(nx) * int(ny)
@@ -204,15 +204,15 @@ def scene_timing(fv: np.ndarray, nx: int, ny: int, n_stack: int, time_size: int,
     else:
         kind_run = "undefined (timeSize <= 0)"
 
-    # 合成後の山谷。**単一フレーム番号では書かない。**
-    # `*Linear` の階段（2 フレームで 1 段）が滑らかな成分に重なるため、極値の近傍は
-    # 0.5 A 程度のこぎり歯を持つ平坦部になり、「どのフレームが頂点か」は ±1 決まらない。
-    # 移動平均（窓 2）で周期 2 の成分を消して極値を出し、生の系列で許容幅に入る
-    # フレームの帯として返す。
+    # Peaks and troughs after composition. **Not written as a single frame number.**
+    # The `*Linear` staircase (one step per 2 frames) sits on top of a smooth component, so near an
+    # extremum there is a plateau with a sawtooth of about 0.5 A, and "which frame is the peak" is undetermined to ±1.
+    # A moving average (window 2) removes the period-2 component to find the extremum, and the frames
+    # of the raw series within the tolerance are returned as a band.
     extrema: list = []
     tol = 0.0
     if head.size >= 4:
-        sm = 0.5 * (head[:-1] + head[1:])                 # 窓 2 の移動平均
+        sm = 0.5 * (head[:-1] + head[1:])                 # moving average, window 2
         p2p = float(sm.max() - sm.min())
         tol = max(1e-3 * p2p, 1e-9)
         d = np.diff(sm)
@@ -221,7 +221,7 @@ def scene_timing(fv: np.ndarray, nx: int, ny: int, n_stack: int, time_size: int,
         if nz.size > 1:
             sgn = np.sign(d[nz])
             for k in np.flatnonzero(np.diff(sgn) != 0):
-                c = int(nz[k]) + 1                        # sm の 0-based 極値位置
+                c = int(nz[k]) + 1                        # 0-based position of the extremum in sm
                 kind = "max" if sgn[k] > 0 else "min"
                 lo = hi = c
                 while lo > 0 and abs(sm[lo - 1] - sm[c]) <= tol:
@@ -229,7 +229,7 @@ def scene_timing(fv: np.ndarray, nx: int, ny: int, n_stack: int, time_size: int,
                 while hi < sm.size - 1 and abs(sm[hi + 1] - sm[c]) <= tol:
                     hi += 1
                 extrema.append({"kind": kind,
-                                "frameBand": [lo + 1, hi + 2],   # 1-based, 移動平均の 2 フレーム分
+                                "frameBand": [lo + 1, hi + 2],   # 1-based, the 2 frames of the moving average
                                 "value": float(head[c:c + 2].max() if kind == "max"
                                                else head[c:c + 2].min())})
     return {

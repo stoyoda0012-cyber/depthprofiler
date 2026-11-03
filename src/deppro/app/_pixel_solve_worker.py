@@ -400,7 +400,7 @@ def pixel_solve_strip(
 
     Within a strip, each pixel's optimized parameter vector (x_opt) is passed
     as the starting point for the next pixel.  This dramatically reduces
-    SLSQP iterations when neighbouring pixels have similar depth profiles.
+    SLSQP iterations when neighboring pixels have similar depth profiles.
 
     The TransferMatrix, SemiFreeSolverConfig, and Solver object are created
     once and reused for the entire strip.

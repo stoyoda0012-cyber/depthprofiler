@@ -10,7 +10,7 @@ Output structure:
 **Not** written: ``/Dstk`` (ground truth), ``/Py_Drlt`` (legacy).
 
 Compatible with ``deppro.visualize_4d.load_depth_estimate()`` for
-4D isosurface visualisation.
+4D isosurface visualization.
 """
 
 from __future__ import annotations

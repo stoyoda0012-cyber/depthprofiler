@@ -1,34 +1,34 @@
-"""三点比較図（triptych）— 真値 / ベースライン / 評価対象を横に並べる。
+"""Triptych: ground truth / baseline / candidate side by side.
 
-なぜ要るか
+Why
 ----------
-逆問題の結果を人間が見て判断するとき、単独の再構成を眺めても良し悪しが
-分からない。**同じ縮尺・同じ視点・同じ配色で並べて初めて**差が読める。
-その並べ方を毎回書き直していると、パネルごとにクロップや zoom が変わって
-「片方だけ大きい」比較になりやすい。ここではその枠を固定する。
+Looking at one reconstruction on its own, a person cannot tell whether an
+inverse-problem result is good. **Only side by side, at the same scale, from the
+same viewpoint and in the same colors**, does the difference become readable.
+crop or zoom differs per panel and "one side just looks bigger". This module fixes the frame.
 
-規約は 3 枚組:
+The convention is three panels:
 
 ===========  =========================================================
-左           真値（合成データ）または外部参照（触針計・RBS・SIMS など）
-中           ベースライン手法（既存ソルバ・従来法）
-右           評価対象（新しいソルバ・NN・チューニング後）
+left         ground truth (synthetic data) or an external reference (profilometer, RBS, SIMS, ...)
+middle       the baseline method (existing solver, conventional method)
+right        the candidate (new solver, NN, after tuning)
 ===========  =========================================================
 
-真値が無い実データでも、左を外部参照に読み替えれば同じ枠で使える。
+For measured data without a ground truth, read the left panel as the external reference and the frame still applies.
 
-描画は :class:`deppro.visualize_4d.MatlabIsosurfaceRenderer`（MATLAB
-EzDeP4D の ``SurfacePatch == 2`` 忠実モード）。既定値は EzDeP4D の本番
-動画に揃えてある（照明オフ・横長プロットボックス）。値は MATLAB の描画と
-比べて実測した（記録は公開版に含めない）。
+Rendering is :class:`deppro.visualize_4d.MatlabIsosurfaceRenderer` (the MATLAB
+EzDeP4D ``SurfacePatch == 2`` fidelity mode). The defaults match the production
+EzDeP4D videos (lighting off, wide plot box). The values were measured against
+MATLAB's rendering (the record is not part of the public release).
 
-パスは環境変数で解決する。出力は
-:func:`deppro.paths.ensure_outputs_dir`、入力の H5 は
+Paths are resolved through environment variables: output under
+:func:`deppro.paths.ensure_outputs_dir`, input H5 under
 :func:`deppro.paths.simulation_root`。
 
-使い方
+Usage
 ------
-ライブラリとして::
+As a library::
 
     from deppro.tools.triptych import TriptychConfig, render_triptych
 
@@ -37,7 +37,7 @@ EzDeP4D の ``SurfacePatch == 2`` 忠実モード）。既定値は EzDeP4D の�
         TriptychConfig(title="Checkered 10x10, 7 elements, noisy"),
     )
 
-コマンドラインから（MATLAB 生成の H5 三つ組）::
+From the command line (a triple of MATLAB-generated H5 files)::
 
     export DEPPRO_SIMULATION_ROOT=/path/to/Simulation/DepthProfiler
     python -m deppro.tools.triptych \\
@@ -71,51 +71,51 @@ __all__ = [
     "rmse_percent",
 ]
 
-# EzDeP4D の 2x2 タイル（327x220 px の axes）で実測した PlotBoxAspectRatio。
-# 方位・仰角・データ範囲に依らず一定で、axes 矩形の縦横比だけで決まる
-# （MATLAB の描画と比べた実測）。None にすると立方体（正方 axes 相当）。
+# PlotBoxAspectRatio measured on the EzDeP4D 2x2 tile (327x220 px axes).
+# Constant regardless of azimuth, elevation and data range; set only by the
+# aspect ratio of the axes rectangle (measured against MATLAB). None gives a cube (square axes).
 MATLAB_TILE_PLOT_BOX = (0.7127, 1.0, 0.6855)
 
 
 @dataclass
 class TriptychConfig:
-    """三点比較図の見た目。既定は EzDeP4D の本番動画に合わせてある。"""
+    """Appearance of the triptych. Defaults match the production EzDeP4D videos."""
 
-    # --- 視点 ---
-    # MATLAB 既定は view([-105 5]) だが、全体を見渡すには少し上から見る方が
-    # 読みやすい。方位は MATLAB のまま。
+    # --- Viewpoint ---
+    # MATLAB's default is view([-105 5]); a slightly higher elevation reads better
+    # for an overview. The azimuth is MATLAB's.
     azimuth: float = -105.0
     elevation: float = 15.0
     camera_zoom: float = 1.28
     plot_box_aspect: Optional[Tuple[float, float, float]] = MATLAB_TILE_PLOT_BOX
 
-    # --- 質感 ---
-    # EzDeP4D は GUI の 3D Lighting トグルが off のとき lightangle を呼ばない。
-    # 本番動画はその状態で書き出されていた（実測、docs 参照）ので既定を off に
-    # する。True にすると陰影がつく（MATLAB の Lighting on 相当）。
+    # --- Surface ---
+    # EzDeP4D does not call lightangle when the GUI's 3D Lighting toggle is off.
+    # The production videos were written in that state (measured, see docs), so the
+    # default is off. True adds shading (MATLAB's Lighting on).
     lighting: bool = False
-    face_alpha: float = 1.0          # 実効不透明度 = 0.75 * これ（MATLAB 既定 0.75）
+    face_alpha: float = 1.0          # effective opacity = 0.75 * this (MATLAB default 0.75)
     isovalue_degree: float = 0.5
 
-    # --- レイアウト ---
+    # --- Layout ---
     panel_px: Tuple[int, int] = (640, 440)
-    crop_pad: int = 26               # 立方体まわりの余白 px。大きいほど「引き」
-    panel_gap: float = 0.09          # パネル間の隙間（スロット幅に対する比）
+    crop_pad: int = 26               # margin around the cube in px; larger = "further away"
+    panel_gap: float = 0.09          # gap between panels (fraction of the slot width)
     fig_width_in: float = 11.4
     dpi: int = 110
 
-    # --- 中身 ---
+    # --- Content ---
     title: str = ""
     invisible_elements: List[int] = field(default_factory=list)
     show_legend: bool = True
 
-    # --- 動画 ---
+    # --- Video ---
     fps: int = 12
     video_quality: int = 8
 
 
 def rmse_percent(est: DepthProfile4DData, ref: DepthProfile4DData, t: int) -> float:
-    """フレーム *t* の RMSE[%]。可視元素だけでなく全元素で取る。"""
+    """RMSE [%] of frame *t*, over all elements, not only the visible ones."""
     return float(
         np.sqrt(np.mean((est.get_frame(t) - ref.get_frame(t)) ** 2))
     ) * 100.0
@@ -127,14 +127,14 @@ def load_matlab_h5(
     *,
     color_source: str = "auto",
 ) -> DepthProfile4DData:
-    """``DEPPRO_SIMULATION_ROOT`` 配下の MATLAB H5 を 5D で読む。
+    """Read a MATLAB H5 under ``DEPPRO_SIMULATION_ROOT`` as 5D data.
 
-    ``Dstk``（設定＝真値）/ ``Dtrn``（学習）/ ``Drlt``（再構成）のどれでも
-    読める。整形は :func:`deppro.visualize_4d.load_gt_4d` と同じで、MATLAB が
-    列優先なのでフレーム内は x が最速。
+    Reads any of ``Dstk`` (setting = ground truth) / ``Dtrn`` (training) / ``Drlt``
+    (reconstruction). Shaping is the same as :func:`deppro.visualize_4d.load_gt_4d`:
+    MATLAB is column-major, so x varies fastest within a frame.
 
-    ``ezdeprof/dxdydt`` の 3 要素目（時間）は実データと食い違うことがあるので
-    使わず、画素数から割り出す。
+    The third entry of ``ezdeprof/dxdydt`` (time) can disagree with the actual data,
+    so it is not used; the time dimension comes from the pixel count.
     """
     import h5py
 
@@ -145,14 +145,14 @@ def load_matlab_h5(
         path = simulation_root() / path
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} が無い。DEPPRO_SIMULATION_ROOT を設定したか確認する "
-            f"（現在: {simulation_root()}）"
+            f"{path} does not exist. Check that DEPPRO_SIMULATION_ROOT is set "
+            f"(currently: {simulation_root()})"
         )
 
     with h5py.File(path, "r") as f:
         if dataset not in f:
             raise KeyError(
-                f"{path} に {dataset!r} が無い。あるのは "
+                f"{path} has no {dataset!r}; it has "
                 f"{[k for k in f.keys() if k.startswith('D')]}"
             )
         raw = np.array(f[dataset], dtype=np.float64)   # (n_px, n_elem, n_depth)
@@ -184,8 +184,8 @@ def load_matlab_h5(
 
 
 def _make_renderer_config(cfg: TriptychConfig) -> AnimationConfig:
-    # MATLAB の lightangle は view に対して方位 -10 / 仰角 +20 のオフセット。
-    # カメラを動かしたら光源も同じオフセットで動かす（固定すると逆光になる）。
+    # MATLAB's lightangle is an offset of azimuth -10 / elevation +20 from the view.
+    # When the camera moves, move the light by the same offset (a fixed light goes backlit).
     return AnimationConfig(
         render_mode="matlab",
         depth_profile="none",
@@ -219,10 +219,10 @@ def _shoot(renderer, plotter, t: int) -> np.ndarray:
 
 
 def _common_crop(pairs, n_frames: int, panel_px, pad: int):
-    """3 面**共通**のクロップ枠を決める。
+    """Decide the crop frame **shared** by the three panels.
 
-    枠を面ごとに変えると縮尺が変わって比較にならないので、必ず和を取る。
-    立方体の外形はフレームに依らないはずだが、念のため複数フレームで取る。
+    Different frames per panel would change the scale and break the comparison, so
+    the union is always taken. The cube's outline should not depend on the frame, but several frames are sampled to be safe.
     """
     w, h = panel_px
     y0 = x0 = 10 ** 9
@@ -236,7 +236,7 @@ def _common_crop(pairs, n_frames: int, panel_px, pad: int):
             y0, y1 = min(y0, ys.min()), max(y1, ys.max())
             x0, x1 = min(x0, xs.min()), max(x1, xs.max())
     if y1 < 0:
-        raise RuntimeError("全フレームが空だった（閾値に届く元素が無い？）")
+        raise RuntimeError("every frame was empty (no element reaches the threshold?)")
     y0, y1 = max(0, y0 - pad), min(h - 1, y1 + pad)
     x0, x1 = max(0, x0 - pad), min(w - 1, x1 + pad)
     touches_edge = (y0 <= 0 or x0 <= 0 or y1 >= h - 1 or x1 >= w - 1)
@@ -253,27 +253,27 @@ def render_triptych(
     = rmse_percent,
     metric_label: str = "RMSE",
 ) -> Path:
-    """3 枚組を描いて動画（複数フレーム）か PNG（単一フレーム）を書く。
+    """Draw the triptych and write a video (several frames) or a PNG (one frame).
 
     Parameters
     ----------
     panels
-        ``(ラベル, データ)`` を左から 3 つ。左が真値／外部参照。
+        ``(label, data)`` three times, left to right. The left one is the ground truth / external reference.
     config
-        見た目。既定は EzDeP4D の本番動画相当。
+        Appearance. Defaults match the production EzDeP4D videos.
     output
-        出力ファイル名。``ensure_outputs_dir("triptych")`` の下に置かれる。
-        既定は ``triptych.mp4`` / 単一フレームなら ``triptych.png``。
+        Output file name, placed under ``ensure_outputs_dir("triptych")``.
+        Defaults to ``triptych.mp4``, or ``triptych.png`` for a single frame.
     frames
-        描くフレーム番号。既定は全フレーム。
+        Frame numbers to draw. Defaults to every frame.
     metric
-        パネル 2 以降の見出しに出す指標。左のデータを参照として呼ばれる。
-        ``None`` で無効。
+        Metric shown in the headings of panels 2 and 3, called with the left data as the reference.
+        ``None`` disables it.
 
     Returns
     -------
     Path
-        書き出したファイル。
+        The written file.
     """
     if not HAS_PYVISTA:
         raise ImportError("PyVista required: pip install pyvista")
@@ -285,7 +285,7 @@ def render_triptych(
     import pyvista as pv
 
     if len(panels) != 3:
-        raise ValueError(f"3 枚組なので 3 つ渡す（受け取った: {len(panels)}）")
+        raise ValueError(f"a triptych takes 3 panels (got {len(panels)})")
     cfg = config or TriptychConfig()
     ref = panels[0][1]
     if frames is None:
@@ -299,21 +299,21 @@ def render_triptych(
         renderer = MatlabIsosurfaceRenderer(data, render_cfg)
         plotter = pv.Plotter(off_screen=True, window_size=cfg.panel_px)
         plotter.set_background("white")
-        # 半透明にするなら depth peeling が要る（MATLAB は SortMethod='depth'
-        # で解決しているが VTK は並べ替えない）。レンダラ側が面倒を見る。
+        # Translucency needs depth peeling (MATLAB resolves it with SortMethod='depth';
+        # VTK does not sort). The renderer takes care of it.
         pairs.append((renderer, plotter))
 
     crop, touches_edge = _common_crop(pairs, ref.nt, cfg.panel_px, cfg.crop_pad)
     if touches_edge:
         print(
-            "warning: 立方体がパネル端に接している。camera_zoom を下げるか "
-            "crop_pad を減らすと切れなくなる"
+            "warning: the cube touches the panel edge. Lower camera_zoom or "
+            "reduce crop_pad to stop it being cut off"
         )
     ch = crop[0].stop - crop[0].start
     cw = crop[1].stop - crop[1].start
 
-    # クロップ後の縦横比にスロットを合わせると自動の余白（letterbox）が
-    # 消え、パネル間の空きは panel_gap だけになる。
+    # Matching the slots to the cropped aspect ratio removes the automatic
+    # letterbox, leaving only panel_gap between panels.
     lo, hi, top, bot = 0.005, 0.995, 0.875, 0.10
     slot_w = cfg.fig_width_in * (hi - lo) / (3 + 2 * cfg.panel_gap)
     fig_h = (slot_w * ch / cw) / (top - bot)
@@ -387,7 +387,7 @@ def render_triptych(
 
 
 def _parse_spec(spec: str) -> Tuple[str, str, Optional[str]]:
-    """``path:dataset:label`` を分解する（後ろ 2 つは省略可）。"""
+    """Split ``path:dataset:label`` (the last two are optional)."""
     parts = spec.split(":")
     path = parts[0]
     dataset = parts[1] if len(parts) > 1 and parts[1] else "Drlt"
@@ -397,18 +397,18 @@ def _parse_spec(spec: str) -> Tuple[str, str, Optional[str]]:
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(
-        description="三点比較図（真値 / ベースライン / 評価対象）",
+        description="Triptych (ground truth / baseline / candidate)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__.split("使い方")[-1],
+        epilog=__doc__.split("Usage")[-1],
     )
     parser.add_argument(
         "--h5", action="append", required=True, metavar="PATH[:DATASET[:LABEL]]",
-        help="3 回指定する。DEPPRO_SIMULATION_ROOT からの相対パスでよい。"
-        " DATASET 既定 Dstk/Drlt。左から 真値 / ベースライン / 評価対象",
+        help="Give it 3 times. May be relative to DEPPRO_SIMULATION_ROOT."
+        " DATASET defaults to Dstk/Drlt. Left to right: ground truth / baseline / candidate",
     )
-    parser.add_argument("-o", "--output", default=None, help="出力ファイル名")
+    parser.add_argument("-o", "--output", default=None, help="Output file name")
     parser.add_argument("--frame", type=int, default=None,
-                        help="このフレームだけ PNG で書く")
+                        help="Write only this frame, as a PNG")
     parser.add_argument("--max-frames", type=int, default=None)
     parser.add_argument("--title", default="")
     parser.add_argument("--elevation", type=float, default=None)
@@ -417,18 +417,18 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--crop-pad", type=int, default=None)
     parser.add_argument("--panel-gap", type=float, default=None)
     parser.add_argument("--lighting", action="store_true",
-                        help="陰影をつける（MATLAB の 3D Lighting on 相当）")
+                        help="Add shading (MATLAB's 3D Lighting on)")
     parser.add_argument("--face-alpha", type=float, default=None,
-                        help="実効不透明度 = 0.75 x これ。4/3 で完全不透明")
+                        help="Effective opacity = 0.75 x this; 4/3 is fully opaque")
     parser.add_argument("--cube", action="store_true",
-                        help="立方体にする（既定は EzDeP4D タイルの横長）")
+                        help="Use a cube (the default is the wide EzDeP4D tile)")
     parser.add_argument("--hide-oxygen", action="store_true")
     parser.add_argument("--hide", nargs="*", type=int, default=[])
     parser.add_argument("--fps", type=int, default=None)
     args = parser.parse_args(argv)
 
     if len(args.h5) != 3:
-        parser.error(f"--h5 は 3 回必要（受け取った: {len(args.h5)}）")
+        parser.error(f"--h5 is needed 3 times (got {len(args.h5)})")
 
     panels: List[Tuple[str, DepthProfile4DData]] = []
     default_labels = ["Ground truth", "Baseline", "Method"]

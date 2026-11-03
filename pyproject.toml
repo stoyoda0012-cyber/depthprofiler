@@ -83,15 +83,15 @@ exclude = [
     "deppro.diagnostics*",
 ]
 
-# ★ pytest の設定はここが正本。src/deppro/pytest.ini は 2026-07-29 に削除した
-#   （rootdir を src/deppro に奪って、この節を丸ごと死に設定にしていた＝
-#     app/tests が既定の `pytest` で一度も走っていなかった）。
+# ★ The pytest configuration lives here. src/deppro/pytest.ini was deleted on 2026-07-29
+#   (it hijacked rootdir to src/deppro and made this whole section dead configuration:
+#     app/tests had never run under a plain `pytest`).
 [tool.pytest.ini_options]
 testpaths = ["src/deppro/tests", "src/deppro/app/tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-# _archived/ は凍結置き場。収集しない（緑にする責任を負う対象を明確にする）。
+# _archived/ is a frozen area; not collected (makes explicit what we are responsible for keeping green).
 norecursedirs = ["_archived", "*.egg", ".*", "build", "dist", "__pycache__"]
 addopts = "-v --tb=short -m 'not slow'"
 filterwarnings = [
@@ -99,6 +99,6 @@ filterwarnings = [
     "ignore::UserWarning",
 ]
 markers = [
-    "slow: 30 秒以上かかるテスト。既定では除外（走らせるなら -m slow）",
-    "benchmark: 性能回帰テスト",
+    "slow: tests that take 30 s or more. Excluded by default (run with -m slow)",
+    "benchmark: performance regression tests",
 ]

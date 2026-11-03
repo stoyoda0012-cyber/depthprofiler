@@ -1,15 +1,15 @@
 """
-MATLAB DepthProfiler 初期化ロジックのPython移植
+Python port of the MATLAB DepthProfiler initialization logic
 
-MATLABの Set_Callback で行われる初期化処理をPythonで再現。
-これにより、Pythonで生成したH5ファイルがGUIで正しく読み込める。
+Reproduces in Python the initialization that MATLAB's Set_Callback performs,
+so that an H5 file generated from Python loads correctly in the GUI.
 
-主要コンポーネント:
-- TransformationMatrix: 転送行列の計算（調和平均 + Beer-Lambert則）
-- DistributionCalculator: 深さプロファイルの計算（Gaussian等）
-- ChargeBalancer: 電荷バランス調整
+Main components:
+- TransformationMatrix: transfer-matrix calculation (harmonic mean + Beer-Lambert law)
+- DistributionCalculator: depth-profile calculation (Gaussian and others)
+- ChargeBalancer: charge-balance adjustment
 
-使用例:
+Example:
     from deppro.io.initializer import DepthProfileInitializer
 
     init = DepthProfileInitializer(
@@ -21,10 +21,10 @@ MATLABの Set_Callback で行われる初期化処理をPythonで再現。
         photon_energy=8000.0,
     )
 
-    # 深さプロファイルから初期化
+    # Initialize from a depth profile
     init.initialize_from_profile(D_true)
 
-    # H5Writerに設定を適用
+    # Apply the settings to an H5Writer
     init.apply_to_writer(writer)
 """
 
@@ -37,7 +37,7 @@ from deppro.imfp import IMFP
 
 @dataclass
 class TransformationMatrixParams:
-    """転送行列計算のパラメータ"""
+    """Parameters of the transfer-matrix calculation"""
     gammaeff: float = 0.8
     depth: np.ndarray = field(default_factory=lambda: np.array([0.0]))
     stepsize: float = 30.0
@@ -50,17 +50,17 @@ class TransformationMatrixParams:
 
 class TransformationMatrix:
     """
-    転送行列の計算クラス
+    Transfer-matrix calculator
 
-    MATLABの deppro.core.TransformationMatrix と同等の機能を提供。
+    Provides the same functionality as MATLAB's deppro.core.TransformationMatrix.
 
-    転送行列は深さプロファイルD(z)から角度依存強度I(θ)への変換を行う：
+    The transfer matrix maps the depth profile D(z) to the angle-dependent intensity I(θ):
         I(θ, element) = Σ_z TransMat(θ, z, element) × D(z, element)
 
-    計算ステップ:
-    1. 調和平均によるλ_obs計算: 1/λ = Σ(D_j / λ_ij)
-    2. Beer-Lambert則による減衰: exp(-z / (λ × cosθ))
-    3. 累積積による転送行列構築
+    Calculation steps:
+    1. λ_obs from the harmonic mean: 1/λ = Σ(D_j / λ_ij)
+    2. Beer-Lambert attenuation: exp(-z / (λ × cosθ))
+    3. Transfer matrix from the cumulative product
     """
 
     @staticmethod
@@ -70,31 +70,31 @@ class TransformationMatrix:
         gammaeff: float = 0.8
     ) -> np.ndarray:
         """
-        調和平均による有効IMFP計算
+        Effective IMFP from the harmonic mean
 
-        MATLAB式:
+        MATLAB formula:
             lambdaobs(:,:,k) = gammaeff ./ sum(
                 repmat(permute(Dmat, [1 3 2]), 1, nElement, 1) .*
                 repmat(permute(lambdabasic(:,:,k), [3 2 1]).^(-1), nDepth, 1, 1), 3)
 
         Args:
-            D: 深さプロファイル (n_depth, n_elem)
-            lambdabasic: 基本IMFP (n_elem, n_elem) または (1, n_elem, n_elem)
-                         lambdabasic[i, j] = 元素iの光電子が化合物jを通過するIMFP
-            gammaeff: 有効減衰係数 (default: 0.8)
+            D: depth profile (n_depth, n_elem)
+            lambdabasic: basic IMFP (n_elem, n_elem) or (1, n_elem, n_elem)
+                                      lambdabasic[i, j] = IMFP of a photoelectron of element i traveling through compound j
+            gammaeff: effective attenuation coefficient (default: 0.8)
 
         Returns:
-            lambdaobs: 有効IMFP (n_depth, n_elem)
+            lambdaobs: effective IMFP (n_depth, n_elem)
         """
         n_depth, n_elem = D.shape
 
-        # lambdabasic の形状を正規化
+        # Normalize the shape of lambdabasic
         if lambdabasic.ndim == 3:
             lb = lambdabasic[0]  # (n_elem, n_elem)
         else:
             lb = lambdabasic
 
-        # 調和平均: 1/λ_eff = Σ_j (D_j / λ_ij)
+        # Harmonic mean: 1/λ_eff = Σ_j (D_j / λ_ij)
         # lambdaobs[z, i] = gammaeff / Σ_j (D[z, j] / lb[i, j])
         lambdaobs = np.zeros((n_depth, n_elem), dtype=np.float32)
 
@@ -107,7 +107,7 @@ class TransformationMatrix:
                 if denom > 1e-10:
                     lambdaobs[z, i] = gammaeff / denom
                 else:
-                    # フォールバック: 対角成分
+                    # Fallback: diagonal element
                     lambdaobs[z, i] = lb[i, i] if lb[i, i] > 0 else 100.0
 
         return lambdaobs
@@ -119,19 +119,19 @@ class TransformationMatrix:
         stepsize: float
     ) -> np.ndarray:
         """
-        Beer-Lambert則による転送行列計算
+        Transfer matrix from the Beer-Lambert law
 
-        MATLAB式:
+        MATLAB formula:
             t1 = (-stepsize / lambdaobs) / cos(theta * pi/180)
             TransMat = cumprod(exp(t1), 2) / exp(t1)
 
         Args:
-            lambdaobs: 有効IMFP (n_depth, n_elem)
-            theta: 角度配列 [degrees]
-            stepsize: 深さステップ [Å]
+            lambdaobs: effective IMFP (n_depth, n_elem)
+            theta: angle array [degrees]
+            stepsize: depth step [Å]
 
         Returns:
-            TransMat: 転送行列 (n_angles, n_depth, n_elem)
+            TransMat: transfer matrix (n_angles, n_depth, n_elem)
         """
         n_depth, n_elem = lambdaobs.shape
         n_angles = len(theta)
@@ -141,7 +141,7 @@ class TransformationMatrix:
 
         for a in range(n_angles):
             if abs(cos_theta[a]) < 1e-6:
-                # cos(90°) ≈ 0 の場合はNaN
+                # NaN when cos(90°) ≈ 0
                 TransMat[a, :, :] = np.nan
                 continue
 
@@ -153,7 +153,7 @@ class TransformationMatrix:
                 exp_t1 = np.exp(t1)
                 cumprod_exp = np.cumprod(exp_t1)
 
-                # MATLABの cumprod(exp(t1), 2) ./ exp(t1) と同等
+                # Equivalent to MATLAB's cumprod(exp(t1), 2) ./ exp(t1)
                 TransMat[a, :, e] = cumprod_exp / exp_t1
 
         return TransMat
@@ -164,16 +164,16 @@ class TransformationMatrix:
         theta: np.ndarray
     ) -> np.ndarray:
         """
-        λ × cos(θ) の計算
+        Compute λ × cos(θ)
 
         Args:
-            lambdaobs: 有効IMFP (n_depth, n_elem)
-            theta: 角度配列 [degrees]
+            lambdaobs: effective IMFP (n_depth, n_elem)
+            theta: angle array [degrees]
 
         Returns:
             lambda_cos_theta: (n_angles, n_elem)
         """
-        # 深さ方向の平均
+        # Average over depth
         lambda_mean = np.mean(lambdaobs, axis=0)  # (n_elem,)
         cos_theta = np.cos(np.radians(theta))[:, np.newaxis]  # (n_angles, 1)
 
@@ -185,11 +185,11 @@ class TransformationMatrix:
         params: TransformationMatrixParams
     ) -> Dict[str, np.ndarray]:
         """
-        全ての転送行列関連値を計算
+        Compute every transfer-matrix related quantity
 
         Args:
-            D: 深さプロファイル (n_depth, n_elem)
-            params: パラメータ
+            D: depth profile (n_depth, n_elem)
+            params: parameters
 
         Returns:
             dict with keys:
@@ -200,13 +200,13 @@ class TransformationMatrix:
                 - lambdacosinethetaobs: (n_angles_obs, n_elem)
                 - lambdacosinethetaopt: (n_angles_opt, n_elem)
         """
-        # 有効IMFP計算
+        # Effective IMFP
         lambdaobs = TransformationMatrix.calculate_lambda_obs(
             D, params.lambdabasic, params.gammaeff
         )
         lambdaopt = lambdaobs.copy()
 
-        # 転送行列計算
+        # Transfer matrix
         TransMatObs = TransformationMatrix.calculate_transfer_matrix(
             lambdaobs, params.thetaobs, params.stepsize
         )
@@ -214,7 +214,7 @@ class TransformationMatrix:
             lambdaopt, params.thetaopt, params.stepsize
         )
 
-        # λ×cos(θ)計算
+        # λ×cos(θ)
         lambdacosinethetaobs = TransformationMatrix.calculate_lambda_cos_theta(
             lambdaobs, params.thetaobs
         )
@@ -234,9 +234,9 @@ class TransformationMatrix:
 
 class DistributionCalculator:
     """
-    深さプロファイルの計算（Gaussian等の分布関数）
+    Depth-profile calculation (distribution functions such as the Gaussian)
 
-    MATLABの CalculateDistribution.m と同等の機能を提供。
+    Provides the same functionality as MATLAB's CalculateDistribution.m.
     """
 
     @staticmethod
@@ -248,21 +248,21 @@ class DistributionCalculator:
         substrate_profile: np.ndarray
     ) -> np.ndarray:
         """
-        Gaussian分布関数
+        Gaussian distribution function
 
-        MATLAB式:
-            S(k) = width(k) / (2*sqrt(log(2)))  # FWHM→σ変換
+        MATLAB formula:
+            S(k) = width(k) / (2*sqrt(log(2)))  # FWHM → σ
             D0(:,k) = height(k)/100 * exp(-(depth-pos(k))^2 / S(k)^2) * |1-D_subst|
 
         Args:
-            depth: 深さ軸 [Å]
-            position: ピーク位置 [Å]
+            depth: depth axis [Å]
+            position: peak position [Å]
             width_fwhm: FWHM [Å]
-            height: 最大濃度 [%] (0-100)
-            substrate_profile: 基板プロファイル (n_depth,)
+            height: maximum concentration [%] (0-100)
+            substrate_profile: substrate profile (n_depth,)
 
         Returns:
-            profile: (n_depth,) 濃度分布
+            profile: (n_depth,) concentration distribution
         """
         fwhm_to_sigma = 1.0 / (2.0 * np.sqrt(np.log(2)))
         sigma = width_fwhm * fwhm_to_sigma
@@ -270,7 +270,7 @@ class DistributionCalculator:
         if sigma < 1e-6:
             sigma = 1e-6
 
-        # Gaussian × (1 - 基板)
+        # Gaussian × (1 - substrate)
         gaussian = np.exp(-((depth - position) ** 2) / (sigma ** 2))
         profile = (height / 100.0) * gaussian * np.abs(1.0 - substrate_profile)
 
@@ -284,19 +284,19 @@ class DistributionCalculator:
         substrate_ratio: float = 1.0
     ) -> np.ndarray:
         """
-        Error関数による基板プロファイル
+        Substrate profile from the error function
 
-        MATLAB式:
+        MATLAB formula:
             D(:,subst) = subs * 0.5 * |1 + erf((depth - thck) / abrp_sigma)|
 
         Args:
-            depth: 深さ軸 [Å]
-            thickness: 膜厚（界面位置）[Å]
-            abruptness_fwhm: 界面急峻度（FWHM）[Å]
-            substrate_ratio: 基板元素の濃度比率 (default: 1.0)
+            depth: depth axis [Å]
+            thickness: film thickness (interface position) [Å]
+            abruptness_fwhm: interface abruptness (FWHM) [Å]
+            substrate_ratio: concentration ratio of the substrate element (default: 1.0)
 
         Returns:
-            profile: (n_depth,) 基板濃度分布
+            profile: (n_depth,) substrate concentration distribution
         """
         from scipy.special import erf
 
@@ -313,10 +313,10 @@ class DistributionCalculator:
 
 class ChargeBalancer:
     """
-    電荷バランス調整
+    Charge-balance adjustment
 
-    MATLABの電荷バランスループと同等の機能を提供。
-    各深さで正電荷と負電荷の合計がゼロになるよう調整。
+    Provides the same functionality as MATLAB's charge-balance loop:
+    at every depth, the positive and negative charges are adjusted to sum to zero.
     """
 
     @staticmethod
@@ -327,21 +327,21 @@ class ChargeBalancer:
         tolerance: float = 1e-6
     ) -> np.ndarray:
         """
-        電荷バランス調整
+        Adjust the charge balance
 
         Args:
-            D: 深さプロファイル (n_depth, n_elem)
-            charges: 各元素の電荷 (n_elem,)
-            max_iterations: 最大反復回数
-            tolerance: 収束判定閾値
+            D: depth profile (n_depth, n_elem)
+            charges: charge of each element (n_elem,)
+            max_iterations: maximum number of iterations
+            tolerance: convergence threshold
 
         Returns:
-            D_balanced: 電荷バランス調整済みプロファイル
+            D_balanced: charge-balanced profile
         """
         D_balanced = D.copy()
         n_depth, n_elem = D.shape
 
-        # 正電荷・負電荷の元素を分類
+        # Classify the elements by the sign of their charge
         positive_idx = np.where(charges > 0)[0]
         negative_idx = np.where(charges < 0)[0]
 
@@ -357,27 +357,27 @@ class ChargeBalancer:
             if max_imbalance < tolerance:
                 break
 
-            # 電荷バランス調整
+            # Charge-balance adjustment
             for z in range(n_depth):
                 if abs(total_charge[z]) < tolerance:
                     continue
 
                 if total_charge[z] > 0:
-                    # 正電荷過剰: 負電荷元素を増やす
+                    # Excess positive charge: increase the negative elements
                     neg_sum = sum(D_balanced[z, j] for j in negative_idx)
                     if neg_sum > 1e-10:
                         scale = 1.0 + total_charge[z] / (neg_sum * abs(charges[negative_idx[0]]))
                         for j in negative_idx:
                             D_balanced[z, j] *= min(scale, 2.0)
                 else:
-                    # 負電荷過剰: 正電荷元素を増やす
+                    # Excess negative charge: increase the positive elements
                     pos_sum = sum(D_balanced[z, j] for j in positive_idx)
                     if pos_sum > 1e-10:
                         scale = 1.0 - total_charge[z] / (pos_sum * charges[positive_idx[0]])
                         for j in positive_idx:
                             D_balanced[z, j] *= min(scale, 2.0)
 
-            # 正規化
+            # Normalize
             total = D_balanced.sum(axis=1, keepdims=True)
             D_balanced = np.where(total > 1e-10, D_balanced / total, D_balanced)
 
@@ -386,10 +386,10 @@ class ChargeBalancer:
 
 class DepthProfileInitializer:
     """
-    DepthProfiler GUI互換の初期化を行うクラス
+    Initializer compatible with the DepthProfiler GUI
 
-    MATLABの Set_Callback と同等の初期化処理を実行し、
-    H5Writerで使用できる全てのパラメータを計算する。
+    Runs the same initialization as MATLAB's Set_Callback and computes
+    every parameter that H5Writer needs.
     """
 
     def __init__(
@@ -410,19 +410,19 @@ class DepthProfileInitializer:
     ):
         """
         Args:
-            depth: 深さ軸 [Å]
-            angles_obs: 観測角度 [degrees]
-            elements: 元素記号リスト
-            compounds: 化合物名リスト
-            angles_opt: 最適化角度 (省略時はデフォルト16点)
-            photon_energy: 光子エネルギー [eV]
-            gammaeff: 有効減衰係数
-            charges: 各元素の電荷
-            densities: 密度 [g/cm³]
-            molecular_weights: 分子量 [g/mol]
-            valence_charges: 価電子数
-            bandgaps: バンドギャップ [eV]
-            binding_energies: 結合エネルギー [eV]
+            depth: depth axis [Å]
+            angles_obs: observation angles [degrees]
+            elements: list of element symbols
+            compounds: list of compound names
+            angles_opt: optimization angles (default: 16 points)
+            photon_energy: photon energy [eV]
+            gammaeff: effective attenuation coefficient
+            charges: charge of each element
+            densities: densities [g/cm³]
+            molecular_weights: molecular weights [g/mol]
+            valence_charges: numbers of valence electrons
+            bandgaps: band gaps [eV]
+            binding_energies: binding energies [eV]
         """
         self.depth = np.asarray(depth, dtype=np.float32)
         self.angles_obs = np.asarray(angles_obs, dtype=np.float32)
@@ -435,7 +435,7 @@ class DepthProfileInitializer:
         self.n_elem = len(elements)
         self.stepsize = float(depth[1] - depth[0]) if len(depth) > 1 else 30.0
 
-        # デフォルト角度
+        # Default angles
         if angles_opt is None:
             self.angles_opt = np.array(
                 [-10, 0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90],
@@ -444,16 +444,16 @@ class DepthProfileInitializer:
         else:
             self.angles_opt = np.asarray(angles_opt, dtype=np.float32)
 
-        # 物性パラメータの設定
+        # Material parameters
         self._setup_physical_properties(
             charges, densities, molecular_weights,
             valence_charges, bandgaps, binding_energies
         )
 
-        # lambdabasic の計算
+        # lambdabasic
         self._compute_lambda_basic()
 
-        # 結果格納用
+        # Storage for the results
         self.results: Dict[str, Any] = {}
 
     def _setup_physical_properties(
@@ -461,7 +461,7 @@ class DepthProfileInitializer:
         charges, densities, molecular_weights,
         valence_charges, bandgaps, binding_energies
     ):
-        """物性パラメータの設定"""
+        """Set the material parameters"""
         from deppro.io.h5_writer import (
             COMPOUND_PROPERTIES, get_compound_properties,
             estimate_charge_from_compound
@@ -469,7 +469,7 @@ class DepthProfileInitializer:
 
         n = self.n_elem
 
-        # 電荷
+        # Charges
         if charges is not None:
             self.charges = np.array(charges, dtype=np.float32)
         else:
@@ -478,7 +478,7 @@ class DepthProfileInitializer:
                 for c, e in zip(self.compounds, self.elements)
             ], dtype=np.float32)
 
-        # 物性
+        # Material properties
         self.densities = np.zeros(n, dtype=np.float32)
         self.molecular_weights = np.zeros(n, dtype=np.float32)
         self.valence_charges = np.zeros(n, dtype=np.float32)
@@ -491,23 +491,23 @@ class DepthProfileInitializer:
             self.molecular_weights[i] = molecular_weights[i] if molecular_weights else mw
             self.bandgaps[i] = bandgaps[i] if bandgaps else bg
 
-        # 結合エネルギー
+        # Binding energies
         if binding_energies is not None:
             self.binding_energies = np.array(binding_energies, dtype=np.float32)
         else:
             from deppro.io.h5_writer import H5Writer
-            # 1s軌道を仮定（HXPS用）
+            # Assume the 1s orbital (for HXPS)
             orbitals = ['1s'] * n
             self.binding_energies = H5Writer._estimate_binding_energies(
                 self.elements, orbitals
             )
 
     def _compute_lambda_basic(self):
-        """lambdabasic（基本IMFP行列）の計算"""
+        """Compute lambdabasic (the basic IMFP matrix)"""
         n = self.n_elem
         kinetic_energies = self.photon_energy - self.binding_energies
 
-        # lambdabasic[i, j] = 元素iの光電子が化合物jを通過するIMFP
+        # lambdabasic[i, j] = IMFP of a photoelectron of element i traveling through compound j
         self.lambdabasic = np.zeros((n, n), dtype=np.float32)
 
         for i in range(n):
@@ -527,22 +527,22 @@ class DepthProfileInitializer:
         apply_charge_balance: bool = True
     ) -> Dict[str, Any]:
         """
-        深さプロファイルから全ての初期化パラメータを計算
+        Compute every initialization parameter from a depth profile
 
         Args:
-            D: 深さプロファイル (n_depth, n_elem)
-            apply_charge_balance: 電荷バランス調整を適用するか
+            D: depth profile (n_depth, n_elem)
+            apply_charge_balance: whether to apply the charge-balance adjustment
 
         Returns:
             dict with all computed parameters
         """
         D = np.asarray(D, dtype=np.float32)
 
-        # 電荷バランス調整
+        # Charge-balance adjustment
         if apply_charge_balance:
             D = ChargeBalancer.balance(D, self.charges)
 
-        # TransformationMatrix パラメータ
+        # TransformationMatrix parameters
         params = TransformationMatrixParams(
             gammaeff=self.gammaeff,
             depth=self.depth,
@@ -554,14 +554,14 @@ class DepthProfileInitializer:
             n_energies=1,
         )
 
-        # 転送行列計算
+        # Transfer matrix
         tm_results = TransformationMatrix.calculate_all(D, params)
 
-        # 角度プロファイル計算
+        # Angle profiles
         Xobs = self._calculate_angle_profile(D, tm_results['TransMatObs'])
         Xopt = self._calculate_angle_profile(D, tm_results['TransMatOpt'])
 
-        # 結果を保存
+        # Store the results
         self.results = {
             'D': D,
             'Xobs': Xobs,
@@ -578,10 +578,10 @@ class DepthProfileInitializer:
         TransMat: np.ndarray
     ) -> np.ndarray:
         """
-        角度プロファイルの計算
+        Compute the angle profiles
 
         I(θ, elem) = Σ_z TransMat(θ, z, elem) × D(z, elem)
-        X = I / Σ_elem I  (正規化)
+        X = I / Σ_elem I  (normalization)
         """
         n_angles = TransMat.shape[0]
         n_elem = D.shape[1]
@@ -589,12 +589,12 @@ class DepthProfileInitializer:
         I = np.zeros((n_angles, n_elem), dtype=np.float32)
 
         for e in range(n_elem):
-            # NaNを含む行列での計算
+            # Calculation with NaN in the matrix
             tm_e = TransMat[:, :, e]  # (n_angles, n_depth)
             d_e = D[:, e]  # (n_depth,)
             I[:, e] = np.nansum(tm_e * d_e[np.newaxis, :], axis=1)
 
-        # 正規化
+        # Normalize
         I_sum = np.nansum(I, axis=1, keepdims=True)
         I_sum = np.where(I_sum > 1e-10, I_sum, 1.0)
         X = I / I_sum
@@ -603,13 +603,13 @@ class DepthProfileInitializer:
 
     def apply_to_writer(self, writer: 'H5Writer'):
         """
-        計算結果をH5Writerに適用
+        Apply the computed results to an H5Writer
 
         Args:
-            writer: H5Writer インスタンス
+            writer: H5Writer instance
         """
         if not self.results:
-            raise ValueError("initialize_from_profile() を先に呼んでください")
+            raise ValueError("call initialize_from_profile() first")
 
         ez = writer._ezdeprof
         r = self.results
@@ -621,7 +621,7 @@ class DepthProfileInitializer:
         ez['lambdaobs'] = r['lambdaobs'].T.reshape(1, self.n_elem, self.n_depth)
         ez['lambdaopt'] = r['lambdaopt'].T.reshape(1, self.n_elem, self.n_depth)
 
-        # lambdacosinetheta: (n_angles, n_elem) - writeで転置
+        # lambdacosinetheta: (n_angles, n_elem) - transposed on write
         ez['lambdacosinethetaobs'] = r['lambdacosinethetaobs']
         ez['lambdacosinethetaopt'] = r['lambdacosinethetaopt']
 
@@ -642,7 +642,7 @@ class DepthProfileInitializer:
         ez['Xopt'] = r['Xopt']
 
 
-# 便利関数
+# Convenience function
 def create_initialized_h5(
     filepath: str,
     depth: np.ndarray,
@@ -660,30 +660,30 @@ def create_initialized_h5(
     **kwargs
 ) -> str:
     """
-    初期化済みのGUI互換H5ファイルを作成
+    Create an initialized, GUI-compatible H5 file
 
     Args:
-        filepath: 出力パス
-        depth: 深さ軸 [Å]
-        angles_obs: 観測角度 [degrees]
-        elements: 元素記号リスト
-        compounds: 化合物名リスト
-        D_true: 真の深さプロファイル (n_depth, n_elem)
-        D_result: 結果プロファイル（省略時はD_trueにノイズ追加）
-        angles_opt: 最適化角度
-        photon_energy: 光子エネルギー [eV]
-        subst: 基板元素インデックス (1-based)
-        free: 自由元素インデックス (1-based)
-        linked: リンク元素インデックス (1-based)
-        charges: 各元素の電荷
-        **kwargs: H5Writer.set_basic_params への追加引数
+        filepath: output path
+        depth: depth axis [Å]
+        angles_obs: observation angles [degrees]
+        elements: list of element symbols
+        compounds: list of compound names
+        D_true: true depth profile (n_depth, n_elem)
+        D_result: result profile (default: D_true plus noise)
+        angles_opt: optimization angles
+        photon_energy: photon energy [eV]
+        subst: substrate element indices (1-based)
+        free: free element indices (1-based)
+        linked: linked element indices (1-based)
+        charges: charge of each element
+        **kwargs: extra arguments for H5Writer.set_basic_params
 
     Returns:
-        出力ファイルパス
+        Output file path
     """
     from deppro.io.h5_writer import H5Writer
 
-    # 初期化計算
+    # Initialization
     init = DepthProfileInitializer(
         depth=depth,
         angles_obs=angles_obs,
@@ -695,7 +695,7 @@ def create_initialized_h5(
     )
     init.initialize_from_profile(D_true)
 
-    # 結果プロファイル
+    # Result profile
     if D_result is None:
         noise = np.random.normal(0, 0.02, D_true.shape)
         D_result = np.clip(D_true + noise, 0, 1)
@@ -717,10 +717,10 @@ def create_initialized_h5(
         **kwargs
     )
 
-    # 初期化結果を適用
+    # Apply the initialization results
     init.apply_to_writer(writer)
 
-    # プロファイル設定
+    # Profile settings
     writer.set_profiles(
         Drlt=D_result,
         Dtrn=D_true,
@@ -729,7 +729,7 @@ def create_initialized_h5(
         Xopt=init.results['Xopt'],
     )
 
-    # 目的関数
+    # Objective function
     writer.set_objectives(Qrlt=np.array([[1000.0, 0.0, 1000.0]]))
 
     writer.write()

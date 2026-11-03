@@ -1,16 +1,16 @@
-"""GUI profile の検査。**MATLAB を起動する前に Python 側で落とせるものを落とす。**
+"""Checks of a GUI profile. **Catch on the Python side what can be caught before starting MATLAB.**
 
-2 つある:
+There are two:
 
-* `compare_profiles` — 軽量 profile と GUI profile で、GT・座標・役割・forward 条件が
-  同一かを確かめる。export が生成物を書き換えていないことの根拠にする。
-  差が出てよいものは `DECLARED_DIFFERENCES` に名前で挙げ、それ以外の差は失格とする。
-* `readresult_preflight` — `+deppro/+io/DataStore.m` の `loadFullEzdeprofFromH5` が
-  出す `h5read` 呼び出しを**そのまま真似る**。MATLAB 側は try/catch で
-  「Please read a "*.h5" file of depth-profiling results!」の 1 行に潰れてしまい、
-  どのフィールドで落ちたか分からないので、ここで名前・型・shape まで出す。
+* `compare_profiles` — checks that the light profile and the GUI profile agree in GT, coordinates,
+    roles and forward conditions. Evidence that the export did not alter the generated data.
+    Differences that are allowed are named in `DECLARED_DIFFERENCES`; any other difference disqualifies.
+* `readresult_preflight` — **mimics as is** the `h5read` calls that `loadFullEzdeprofFromH5` in
+    `+deppro/+io/DataStore.m` makes. The MATLAB side collapses everything in a try/catch into the single line
+    "Please read a "*.h5" file of depth-profiling results!", which does not say which field failed, so this
+    reports name, type and shape.
 
-どちらも合否は戻り値の `ok` で判定する。標準出力の見た目で判断しない。
+Pass/fail of both is judged by the returned `ok`, not by the look of the standard output.
 """
 
 from __future__ import annotations
@@ -22,18 +22,18 @@ from typing import Any, Dict, List, Sequence
 
 import numpy as np
 
-#: GUI profile で意図的に変えるもの。理由まで込みで宣言する。
+#: What is changed on purpose in the GUI profile. Declared together with the reason.
 DECLARED_DIFFERENCES: Dict[str, str] = {
     "/ezdeprof/TransMatObs":
-        "light は T(D of sample 1)、GUI は T(Dini)。MATLAB は解析前に T(Dopt)=T(Dini) を持つ。"
-        "生成は画素ごとに T を作り直すので、保存値を変えても Dstk/Xstk は変わらない。",
-    "/ezdeprof/elementsymbol": "shape のみ (ne,) -> (ne,1)。値と順序は同じ。",
-    "/ezdeprof/orbital": "shape のみ (ne,) -> (ne,1)。値と順序は同じ。",
-    "/ezdeprof/compound": "shape のみ (ne,) -> (ne,1)。値と順序は同じ。",
-    "/ezdeprof/prpties": "shape のみ (ne,) -> (ne,1)。値と順序は同じ。",
+        "light is T(D of sample 1), the GUI is T(Dini). MATLAB holds T(Dopt)=T(Dini) before analysis."
+        "Generation rebuilds T per pixel, so changing the stored value changes neither Dstk nor Xstk.",
+    "/ezdeprof/elementsymbol": "shape only, (ne,) -> (ne,1). Values and order are the same.",
+    "/ezdeprof/orbital": "shape only, (ne,) -> (ne,1). Values and order are the same.",
+    "/ezdeprof/compound": "shape only, (ne,) -> (ne,1). Values and order are the same.",
+    "/ezdeprof/prpties": "shape only, (ne,) -> (ne,1). Values and order are the same.",
 }
 
-#: 一致していなければならないもの。GT・座標・役割・forward 条件。
+#: What must agree: GT, coordinates, roles, forward conditions.
 IDENTICAL_DATASETS: Sequence[str] = (
     "/Dstk", "/Xstk", "/NSstk", "/stackxyt",
     "/ezdeprof/subst", "/ezdeprof/free", "/ezdeprof/const", "/ezdeprof/linked",
@@ -46,7 +46,7 @@ IDENTICAL_DATASETS: Sequence[str] = (
     "/ezdeprof/SimulationOrExperiment",
 )
 
-#: 値の一致だけを見るもの（shape は宣言済みの差がある）。
+#: What is compared by value only (the shape has a declared difference).
 VALUE_ONLY_DATASETS: Sequence[str] = (
     "/ezdeprof/elementsymbol", "/ezdeprof/orbital", "/ezdeprof/compound", "/ezdeprof/prpties",
 )
@@ -57,9 +57,9 @@ def _decode(a: np.ndarray) -> List[str]:
 
 
 def compare_profiles(light_h5, gui_h5) -> Dict[str, Any]:
-    """軽量 / GUI の 2 ファイルを比べる。数値はバイト一致で見る。
+    """Compare the light and the GUI file. Numbers are compared byte for byte.
 
-    `mean|d| == 0` では署名付きゼロや NaN を見逃すので、`tobytes()` で比べる。
+    `mean|d| == 0` misses signed zeros and NaN, so `tobytes()` is compared.
     """
     import h5py
     problems: List[str] = []
@@ -102,28 +102,28 @@ def _walk(f) -> List[str]:
 
 
 def readresult_field_names(depthprofiler_m) -> List[str]:
-    """`ReadResult_Callback` が参照する `/ezdeprof` の名前。ソースから取り直す。"""
+    """The names under `/ezdeprof` that `ReadResult_Callback` refers to. Taken again from the source."""
     src = Path(depthprofiler_m).read_text(errors="replace")
     i = src.index("function ReadResult_Callback")
     j = src.index("\nfunction ", i + 10)
     return sorted(set(re.findall(r"ezdeprof\.([A-Za-z_]\w*)", src[i:j])))
 
 
-#: `loadFullEzdeprofFromH5` が rank 2 の start/count 付きで読むもの（(1,nelm) 相当）。
+#: What `loadFullEzdeprofFromH5` reads with a rank-2 start/count (equivalent to (1,nelm)).
 _BOUNDED_ROW = ("elementsymbol", "orbital", "stringcharge", "element", "prpties", "compound",
                 "charge", "elementnumber", "orbitalnumber", "photonenergy", "bindingenergy",
                 "valencecharge", "density", "molecularweight", "bandgap")
-#: 同じく (nelm,3) で読むもの。
+#: Likewise, what it reads as (nelm,3).
 _BOUNDED_COL3 = ("Col",)
-#: simulation では書かない（MATLAB も書かない）experiment 専用。
+#: Experiment only; not written in simulation (MATLAB does not write it either).
 EXPERIMENT_ONLY = ("Ismp", "Xsmp", "samplesize", "tsmp")
 
 
 def readresult_preflight(h5_path, depthprofiler_m) -> Dict[str, Any]:
-    """`loadFullEzdeprofFromH5` の h5read を真似て、落ちる場所を先に出す。
+    """Mimic the h5read calls of `loadFullEzdeprofFromH5` and report where it would fail, in advance.
 
-    MATLAB の実物ではないので**これが通っても「GUI で開けた」とは言わない**。
-    通らなければ確実に落ちる、という向きだけの検査。
+    **Passing this does not mean "it opened in the GUI"**, since this is not the real MATLAB.
+    The check only runs one way: failing here means it will certainly fail there.
     """
     import h5py
     need = readresult_field_names(depthprofiler_m)
@@ -143,7 +143,7 @@ def readresult_preflight(h5_path, depthprofiler_m) -> Dict[str, Any]:
         for name in need:
             if name in EXPERIMENT_ONLY:
                 if sim:
-                    continue                      # simulation では読まれない
+                    continue                      # not read in simulation
             if name not in g:
                 missing.append(name)
                 continue
@@ -175,20 +175,20 @@ def readresult_preflight(h5_path, depthprofiler_m) -> Dict[str, Any]:
                      "run MATLAB and says nothing about whether the GUI displays correctly."}
 
 
-#: 同じ cfg で作り直しても一致しないと分かっているもの。**名前で挙げる。**
-#: これ以外の差はすべて失格。
+#: What is known not to agree when regenerated from the same cfg. **Named explicitly.**
+#: Every other difference disqualifies.
 NON_DETERMINISTIC: Dict[str, str] = {
     "/ezdeprof/iterationtime":
-        "解析前の状態を組むのに要した実測秒。MATLAB 側も Set の所要時間なので実行ごとに変わる。"
-        "値そのものは manifest の preAnalysisState.iterationtime に記録される。",
+        "Measured seconds taken to build the pre-analysis state. On the MATLAB side it is also the Set time, so it changes per run."
+        "The value itself is recorded in preAnalysisState.iterationtime of the manifest.",
 }
 
 
 def compare_generations(a_h5, b_h5) -> Dict[str, Any]:
-    """同じ cfg の 2 回の生成を突き合わせる（決定性の検査）。
+    """Compare two generations from the same cfg (determinism check).
 
-    `NON_DETERMINISTIC` に挙げた名前だけ差を許し、それ以外はバイト一致を要求する。
-    差が「許した名前だけ」であることを戻り値で示すので、合否は `ok` で判定する。
+    Only the names listed in `NON_DETERMINISTIC` may differ; everything else must match byte for byte.
+    The return value shows that the differences are "only the allowed names", so pass/fail is judged by `ok`.
     """
     import h5py
     problems: List[str] = []
@@ -223,20 +223,20 @@ def _walk_names(path) -> List[str]:
 
 
 def check_lambdabasic_orientation(h5_path, manifest_path=None) -> Dict[str, Any]:
-    """保存した `/ezdeprof/lambdabasic` の軸の向きを、**参照ファイル無しで**確かめる。
+    """Check the axis orientation of the stored `/ezdeprof/lambdabasic` **without a reference file**.
 
-    MATLAB は `lambdabasic(a, i, k)`（a=物質, i=放出元素）で読み、h5py は次元が逆なので
-    正しい並びは `h5[0][i][a]`。ファイル内の材料定数と結合エネルギーから IMFP を組み直し、
-    2 つの向きのどちらに一致するかを見る。
+    MATLAB reads `lambdabasic(a, i, k)` (a = material, i = emitting element); h5py has the dimensions
+    reversed, so the correct order is `h5[0][i][a]`. The IMFP is rebuilt from the material constants
+    and binding energies in the file, and compared with both orientations.
 
-    **軽量 profile には材料定数（`valencecharge`/`density`/`molecularweight`/`bandgap`）が
-    書かれていない**ので、H5 だけでは組み直せない。その場合は同じフォルダの
-    `manifest.json` の `resolved.forward` から取る（記録されている）。manifest も無ければ
-    `ok=None` を返して**「検査できなかった」ことを明示する**（PASS 扱いにはしない）。
+    **A light profile does not carry the material constants (`valencecharge`/`density`/`molecularweight`/`bandgap`)**,
+    so it cannot be rebuilt from the H5 alone. In that case they are taken from `resolved.forward`
+    of `manifest.json` in the same folder (where they are recorded). Without a manifest either,
+    `ok=None` is returned to **state explicitly that the check could not be made** (not treated as PASS).
 
-    **向きの識別力は行列に依る。** `L` が対称、あるいは 1 成分だと、転置しても同じ値に
-    なるのでこの検査は向きを見分けられない。見分けられるかどうかを
-    `orientationDiscriminating` で別に報告する（「逆なら必ず差が出る」とは書かない）。
+    **The power to tell the orientation depends on the matrix.** If `L` is symmetric or has one
+    component, transposing gives the same values and this check cannot tell them apart. Whether it
+    can is reported separately in `orientationDiscriminating` (it does not claim "a reversal always shows").
     """
     import h5py
     from deppro.imfp import IMFP
@@ -259,10 +259,10 @@ def check_lambdabasic_orientation(h5_path, manifest_path=None) -> Dict[str, Any]
     if nv is None:
         mpath = Path(manifest_path) if manifest_path else path.parent / "manifest.json"
         if not mpath.is_file():
-            return {"ok": None, "verdict": "検査できない（材料定数が H5 に無く、manifest も無い）",
+            return {"ok": None, "verdict": "cannot check (material constants not in the H5 and no manifest)",
                     "constantsSource": None, "missing": list(keys),
-                    "note": "軽量 profile は材料定数を書かない。manifest.json を同じフォルダに置くか、"
-                            "manifest_path を渡すこと。**PASS 扱いにはしない。**"}
+                    "note": "A light profile does not write the material constants. Put manifest.json in the same folder or"
+                            " pass manifest_path. **Not treated as PASS.**"}
         fw = (json.loads(mpath.read_text(encoding="utf-8")).get("resolved") or {}).get("forward") or {}
         try:
             nv = np.asarray(fw["valenceCharge"], dtype=float).ravel()
@@ -270,8 +270,8 @@ def check_lambdabasic_orientation(h5_path, manifest_path=None) -> Dict[str, Any]
             mw = np.asarray(fw["molecularWeight"], dtype=float).ravel()
             eg = np.asarray(fw["bandGap"], dtype=float).ravel()
         except KeyError as exc:
-            return {"ok": None, "verdict": f"検査できない（manifest に {exc} が無い）",
-                    "constantsSource": str(mpath), "note": "PASS 扱いにはしない。"}
+            return {"ok": None, "verdict": f"cannot check (manifest lacks {exc})",
+                    "constantsSource": str(mpath), "note": "Not treated as PASS."}
         source = f"manifest {mpath.name} (resolved.forward)"
 
     ke = ph - be - wf
@@ -280,8 +280,8 @@ def check_lambdabasic_orientation(h5_path, manifest_path=None) -> Dict[str, Any]
     for a in range(ne):
         for i in range(ne):
             want[a, i] = IMFP.calculate(ke[i], nv[a], rho[a], mw[a], eg[a], ver)
-    as_written = float(np.abs(stored - want.T).max())   # 正しい: h5[0][i][a] == L[a,i]
-    transposed = float(np.abs(stored - want).max())     # 誤り: h5[0][a][i]
+    as_written = float(np.abs(stored - want.T).max())   # correct: h5[0][i][a] == L[a,i]
+    transposed = float(np.abs(stored - want).max())     # wrong: h5[0][a][i]
     scale = float(np.abs(want).max())
     asym = float(np.abs(want - want.T).max())
     discriminating = asym > max(1e-6 * scale, 1e-9)
@@ -292,10 +292,10 @@ def check_lambdabasic_orientation(h5_path, manifest_path=None) -> Dict[str, Any]
             "maxAbsDiff_transposed": transposed,
             "orientationDiscriminating": bool(discriminating),
             "asymmetry": asym,
-            "verdict": "h5[0][i][a] == L[a,i]（MATLAB と同じ向き）" if ok else
-                       ("**転置して書かれている**（h5[0][a][i]）。MATLAB の Set/Calculation と "
-                        "解析側 problem.py は転置した値を読む"
-                        if transposed < as_written else "どちらの向きとも一致しない"),
-            "note": "参照ファイルを使わない自己検査。材料定数と結合エネルギーから IMFP を "
-                    "組み直して比べている。`orientationDiscriminating` が False のときは "
-                    "数値整合だけを示し、向きは判別していない。"}
+            "verdict": "h5[0][i][a] == L[a,i] (same orientation as MATLAB)" if ok else
+                       ("**written transposed** (h5[0][a][i]). MATLAB's Set/Calculation and "
+                        "the analysis-side problem.py read transposed values"
+                        if transposed < as_written else "matches neither orientation"),
+            "note": "Self-check without a reference file. The IMFP is rebuilt from the material constants "
+                    "and binding energies and compared. When `orientationDiscriminating` is False, only "
+                    "numerical consistency is shown and the orientation is not determined."}

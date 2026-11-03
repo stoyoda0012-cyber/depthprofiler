@@ -26,7 +26,7 @@ def yeh_lindau_table_path() -> Optional[Path]:
     """Path of the Yeh–Lindau cross-section CSV, or ``None``.
 
     ``DEPPRO_YEH_LINDAU_TABLE_PATH`` if set (``~`` is expanded); an empty value
-    counts as unset. There is no default path: no neighbouring checkout is
+    counts as unset. There is no default path: no neighboring checkout is
     searched.
     """
     value = env_value(_ENV)
@@ -41,7 +41,7 @@ def resolve_yeh_lindau_source() -> Tuple[str, Optional[Path]]:
     ``DEPPRO_YEH_LINDAU_TABLE_PATH`` set -> that CSV. Otherwise toyomacro's
     bundled Yeh–Lindau table (generated from the same CSV; 7172 values compared
     equal on 2026-10-02). Otherwise ``FileNotFoundError`` naming the variable and
-    toyomacro; no neighbouring checkout is searched. toyomacro keeps the
+    toyomacro; no neighboring checkout is searched. toyomacro keeps the
     complete, reviewed tables; deppro extracts the 1s rows it needs.
     """
     if env_value(_ENV):

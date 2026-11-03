@@ -1,46 +1,46 @@
-"""SemiFree の ``x -> D`` 写像を、solver インスタンスから切り出した純関数。
+"""The SemiFree ``x -> D`` map, extracted from the solver instance as pure functions.
 
-段階 -1 の抽出。目的は **`SemiFreeSolver` を組まずに、実行可能な x から D を作れるようにする**
-こと（GT との距離の上限を測るため）。**挙動は変えない。**
-`SemiFreeSolver._build_substrate_profile` / `_build_full_profile` はここへ委譲する。
+Stage -1 extraction. The aim is **to build D from a feasible x without constructing a
+`SemiFreeSolver`** (to bound the distance from the GT). **Behavior is unchanged.**
+`SemiFreeSolver._build_substrate_profile` / `_build_full_profile` delegate here.
 
-抽出の範囲（意図的に最小）
+Scope of the extraction (deliberately minimal)
 --------------------------
-* 入る: 基板 erf プロファイル、`normalize_free_conc`、charge-balance の本体（numba / NumPy
-  両経路）、最終クリップ。
-* 入らない: gradient mode、stoichiometric mode、bounds、制約。これらは `SemiFreeSolver` 側に
-  残す（複製を作らないため）。bounds と制約は実験側から `scipy.optimize.minimize` の引数を
-  捕捉して読む。
+* in: the substrate erf profile, `normalize_free_conc`, the body of charge balance (both
+    the numba and the NumPy path), the final clip.
+* out: gradient mode, stoichiometric mode, bounds, constraints. These stay on the
+    `SemiFreeSolver` side (no duplicate). Bounds and constraints are read on the experiment
+    side by capturing the arguments of `scipy.optimize.minimize`.
 
-抽出時に見つけた既知の経路差（**ここでは直さない**。直すと挙動が変わる）
+Known path differences found during extraction (**not fixed here**; fixing them would change behavior)
 ---------------------------------------------------------------------
-* F1: ``numba_kernels.build_full_profile_numba`` は ``substrate_cutoff`` を持たない。
-  NumPy fallback は持つ（``film_scale = where(substrate_sum >= cutoff, 0, film_scale)``）。
-  したがって ``substrate_cutoff`` を設定すると **2 経路は異なる D を返す**。
-  これは丸め誤差ではない。既定は ``None`` なので通常経路では発生しない。
-  この関数は現行挙動をそのまま写すので、numba 経路では cutoff を無視する。
-* F2: 両 kernel は ``@jit(..., fastmath=True)``、erf は numba=``math.erf`` /
-  NumPy=``scipy.special.erf``。**経路間のビット一致は期待できない**（許容差で照合する）。
+* F1: ``numba_kernels.build_full_profile_numba`` has no ``substrate_cutoff``.
+    The NumPy fallback has one (``film_scale = where(substrate_sum >= cutoff, 0, film_scale)``).
+    So with ``substrate_cutoff`` set, **the two paths return different D**.
+    This is not rounding. The default is ``None``, so it does not occur on the normal path.
+    This function mirrors the current behavior, so the numba path ignores the cutoff.
+* F2: both kernels are ``@jit(..., fastmath=True)``, and erf is numba=``math.erf`` /
+    NumPy=``scipy.special.erf``. **Bit-for-bit agreement between the paths is not expected** (compared within a tolerance).
 
-経路選択（F6 の修正、2026-09-09）
+Path selection (fix F6, 2026-09-09)
 -----------------------------------
-``SemiFreeSolver.__init__`` は ``normalize_free_conc=True`` のとき ``use_numba`` を強制的に
-False にし、さらに ``use_numba and NUMBA_AVAILABLE`` で可用性も見る。抽出した入口にも同じ規則を
-``resolve_use_numba`` として置き、**solver を経由しない呼び出しでも経路選択が一致する**ようにした。
-solver 経由の呼び出しは既に coerce 済みの値を渡してくるので、この規則は no-op であり
-**挙動は変わらない**。可用性フラグは ``numba_kernels.NUMBA_AVAILABLE`` を**そのまま**使う
-（この module の import 成否から立てると、kernel 側の fallback decorator のせいで numba 不在でも
-True になり、solver と逆方向へ食い違う）。
+``SemiFreeSolver.__init__`` forces ``use_numba`` to False when ``normalize_free_conc=True``,
+and also checks availability with ``use_numba and NUMBA_AVAILABLE``. The same rule is placed at
+the extracted entry as ``resolve_use_numba``, so **path selection agrees even for calls that bypass the solver**.
+Calls through the solver pass already-coerced values, so the rule is a no-op there and
+**behavior does not change**. The availability flag is ``numba_kernels.NUMBA_AVAILABLE`` **as is**
+(deriving it from this module's import success would be True even without numba, because of
+the fallback decorator on the kernel side, and would disagree with the solver in the opposite direction).
 
-**この規則が実際に何を防ぐか**: solver 側のコメントは
-「勾配・forward が非正規化変数を前提とする」と言うが、それは勾配・forward の話であって
-``build_full_profile_numba`` 自身は内部で正規化しない。したがって x→D の写像に限れば、
-``substrate_cutoff=None`` のもとで両経路の差は**丸め水準**（実測 ~1e-16）にとどまる。
-**実害が出るのは ``normalize_free_conc=True`` かつ ``substrate_cutoff`` が非 None のとき**で、
-numba kernel が cutoff を持たないぶん D が食い違う（**差の大きさは条件依存**: seed 0-5 ×
-cutoff {0.3, 0.5, 0.7} × t {150, 210, 300} の 54 条件で min 0.0001 / median 0.2187 / max 0.3074、
-回帰テストと同条件で 0.2532）。この規則は
-(1) solver との経路一貫性と (2) その組合せでの食い違い、の 2 つを防ぐ。
+**What this rule actually prevents**: the solver-side comment says
+"the gradient and forward assume unnormalized variables", but that concerns the gradient and
+forward; ``build_full_profile_numba`` itself does not normalize internally. So for the x→D map
+alone, with ``substrate_cutoff=None`` the two paths differ only at **rounding level** (measured ~1e-16).
+**Real harm occurs with ``normalize_free_conc=True`` and a non-None ``substrate_cutoff``**, where
+D differs because the numba kernel has no cutoff (**the size of the difference depends on the conditions**: over the 54
+conditions seed 0-5 × cutoff {0.3, 0.5, 0.7} × t {150, 210, 300}, min 0.0001 / median 0.2187 / max 0.3074,
+and 0.2532 under the regression-test conditions). The rule prevents
+(1) path inconsistency with the solver and (2) the discrepancy in that combination.
 """
 
 from __future__ import annotations
@@ -51,17 +51,17 @@ from typing import Optional, Sequence
 import numpy as np
 from scipy.special import erf
 
-try:  # numba は任意依存
-    # NOTE: `numba_kernels` は numba 不在でも identity decorator へ fallback するので、
-    # **この import は失敗しない**。可用性は kernel 側のフラグを見ないと分からない
-    # （以前はここで True を立てており、
-    # numba 不在時に solver と逆方向へ食い違っていた）。
+try:  # numba is an optional dependency
+    # NOTE: `numba_kernels` falls back to an identity decorator without numba, so
+    # **this import does not fail**. Availability is known only from the kernel-side flag
+    # (this used to set True here, which disagreed with the solver
+    # in the opposite direction when numba was absent).
     from .numba_kernels import (
         NUMBA_AVAILABLE as NUMBA_KERNELS_AVAILABLE,
         build_full_profile_numba,
         build_substrate_profile_numba,
     )
-except ImportError:  # pragma: no cover - 環境依存
+except ImportError:  # pragma: no cover - environment dependent
     NUMBA_KERNELS_AVAILABLE = False
 
 
@@ -76,18 +76,18 @@ __all__ = [
 
 # ---------------------------------------------------------------------------
 def resolve_use_numba(normalize_free_conc: bool, use_numba: bool) -> bool:
-    """経路選択の規則。``SemiFreeSolver.__init__`` と同一（F6）。
+    """The path-selection rule. Identical to ``SemiFreeSolver.__init__`` (F6).
 
-    solver 側 (``__init__``) は ``use_numba and NUMBA_AVAILABLE`` を取ったうえで、
-    ``normalize_free_conc=True`` なら ``use_numba = False`` に落とす。抽出した入口を
-    solver を経由せずに呼ぶ場合、このガードが無いと経路が食い違うので、規則をここに
-    1 か所だけ置く。``NUMBA_KERNELS_AVAILABLE`` は ``numba_kernels.NUMBA_AVAILABLE``
-    そのもの（この module 内で import 成否から立てると、fallback decorator のせいで
-    常に True になり solver と食い違う）。
+    The solver side (``__init__``) takes ``use_numba and NUMBA_AVAILABLE`` and then drops to
+    ``use_numba = False`` when ``normalize_free_conc=True``. Calling the extracted entry without
+    going through the solver would select a different path without this guard, so the rule lives
+    here in one place. ``NUMBA_KERNELS_AVAILABLE`` is ``numba_kernels.NUMBA_AVAILABLE``
+    itself (deriving it from import success inside this module would always be True because
+    of the fallback decorator, and disagree with the solver).
 
-    何を防ぐかはモジュール docstring の「経路選択」節を見ること。
-    ``substrate_cutoff=None`` では丸め水準の差しか防がないが、非 None との組合せでは
-    条件依存の食い違い（54 条件で median 0.2187 / max 0.3074、テスト同条件 0.2532）を防ぐ。
+    For what it prevents, see the "Path selection" section of the module docstring.
+    With ``substrate_cutoff=None`` it prevents only rounding-level differences; combined with a
+    non-None cutoff it prevents a condition-dependent discrepancy (median 0.2187 / max 0.3074 over 54 conditions, 0.2532 under the test conditions).
     """
     if normalize_free_conc:
         return False
@@ -105,7 +105,7 @@ def build_substrate_profile(
 ) -> np.ndarray:
     """``D_sub(z, e) = ratio_e * 0.5 * (1 + erf((z - thickness) / sigma))``、``sigma = FWHM/(2 sqrt(ln2))``。
 
-    `SemiFreeSolver._build_substrate_profile` の本体をそのまま移したもの。
+    The body of `SemiFreeSolver._build_substrate_profile`, moved as is.
     """
     if use_numba:
         return build_substrate_profile_numba(depth, thickness, abruptness, substrate_ratios)
@@ -140,10 +140,10 @@ def build_full_profile_core(
     linked_idx_array: Optional[np.ndarray] = None,
     use_numba: bool = False,
 ) -> np.ndarray:
-    """charge-balance モードの ``x -> D``（gradient / stoichiometric は含まない）。
+    """``x -> D`` of the charge-balance mode (gradient / stoichiometric not included).
 
-    `SemiFreeSolver._build_full_profile` の該当部分をそのまま移したもの。
-    `substrate_cutoff` は NumPy 経路にのみ効く（F1）。
+    The relevant part of `SemiFreeSolver._build_full_profile`, moved as is.
+    `substrate_cutoff` acts only on the NumPy path (F1).
     """
     use_numba = resolve_use_numba(normalize_free_conc, use_numba)   # F6
 
@@ -199,9 +199,9 @@ def build_full_profile_core(
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class SemiFreeGeometry:
-    """`build_full_profile_core` の固定引数をまとめたもの（solver の外から使うため）。
+    """The fixed arguments of `build_full_profile_core` bundled (for use outside the solver).
 
-    `from_solver` は **読み取りのみ**で、solver を変更しない。
+    `from_solver` is **read-only** and does not modify the solver.
     """
 
     depth: np.ndarray
@@ -234,7 +234,7 @@ class SemiFreeGeometry:
 
     @property
     def effective_use_numba(self) -> bool:
-        """F6 の規則を適用したあとの経路。``use_numba`` の生値ではなくこちらを見る。"""
+        """The path after applying rule F6. Look at this, not at the raw ``use_numba``."""
         return resolve_use_numba(self.normalize_free_conc, self.use_numba)
 
     @property

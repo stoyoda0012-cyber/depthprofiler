@@ -17,7 +17,7 @@ Usage
 Date: 2026-03-02
 
 Isocaps are clip_scalar-based smooth triangulated isocaps (matching
-MATLAB's isocaps() behaviour): boundary edges are interpolated triangles,
+MATLAB's isocaps() behavior): boundary edges are interpolated triangles,
 not axis-aligned stairs.
 """
 
@@ -81,7 +81,7 @@ class DepthProfile4DData:
     element_names : list[str]
         Element labels, e.g. ``['O(-2)', 'B(0)', ...]``.
     colors : ndarray, shape (n_elem, 3)
-        RGB colours per element (0-1 range).
+        RGB colors per element (0-1 range).
     step_size : float
         Depth spacing in Angstroms.
     nx, ny, nt : int
@@ -254,7 +254,7 @@ class AnimationConfig:
 # ============================================================================
 
 
-# Standard MATLAB DepthProfiler colour palette (MATLAB default line colors)
+# Standard MATLAB DepthProfiler color palette (MATLAB default line colors)
 _STANDARD_ELEMENT_COLORS: dict = {
     "Si(0)":  [0.00, 0.40, 0.67],  # blue  (substrate)
     "Si(+4)": [0.76, 0.29, 0.09],  # rust/orange
@@ -271,7 +271,7 @@ def _standard_colors(
     element_names: List[str],
     palette: Optional[Dict[str, List[float]]] = None,
 ) -> Optional[np.ndarray]:
-    """Return palette colours if all elements are matched, else *None*.
+    """Return palette colors if all elements are matched, else *None*.
 
     Parameters
     ----------
@@ -292,7 +292,7 @@ def _standard_colors(
 
 
 def _hsv_fallback_colors(n: int) -> np.ndarray:
-    """Generate HSV-based colours matching MATLAB default."""
+    """Generate HSV-based colors matching MATLAB default."""
     try:
         import matplotlib.cm as cm
 
@@ -332,7 +332,7 @@ def _resolve_colors(
     color_source: str = "auto",
     palette: Optional[Dict[str, List[float]]] = None,
 ) -> np.ndarray:
-    """Resolve element colours from available sources.
+    """Resolve element colors from available sources.
 
     Parameters
     ----------
@@ -409,7 +409,7 @@ def load_gt_4d(
         ``"auto"`` (H5 → standard → HSV), ``"h5"``, ``"standard"``,
         or ``"hsv"``.
     palette : dict, optional
-        Custom ``{element_name: [r, g, b]}`` colour map.  Used when
+        Custom ``{element_name: [r, g, b]}`` color map.  Used when
         *color_source* is ``"auto"`` or ``"standard"``.
 
     Returns
@@ -444,7 +444,7 @@ def load_gt_4d(
         dy_h5 = int(dxdydt_arr[1])
         dt_h5 = int(dxdydt_arr[2])
 
-        # Colours: configurable source priority
+        # Colors: configurable source priority
         h5_col = (
             np.array(f["ezdeprof/Col"], dtype=np.float64)
             if "ezdeprof/Col" in f
@@ -481,7 +481,7 @@ def load_gt_4d(
 
     # --- Reshape to 5D: (nt, nx, ny, n_depth, n_elem) ---
     # MATLAB column-major: x varies fastest within a time frame.
-    # Vectorised via Fortran-order index array (no Python loops).
+    # Vectorized via Fortran-order index array (no Python loops).
     Dstk_4d = Dstk.reshape(nt, dxdy, n_depth, n_elem_h5)
     idx_F = np.arange(dxdy).reshape(nx, ny, order="F")  # Fortran pixel map
     data_5d = Dstk_4d[:, idx_F, :, :]  # (nt, nx, ny, n_depth, n_elem)
@@ -529,7 +529,7 @@ def load_gt_4d_lazy(
     nx, ny : int, optional
         Spatial grid (same as :func:`load_gt_4d`).
     color_source, palette
-        Colour options (same as :func:`load_gt_4d`).
+        Color options (same as :func:`load_gt_4d`).
     compression : str
         HDF5 compression for temp file (``"gzip"``, ``"lzf"``, or ``None``).
 
@@ -698,7 +698,7 @@ def load_depth_estimate(
         dy_h5 = int(dxdydt_arr[1])
         dt_h5 = int(dxdydt_arr[2])
 
-        # Colours
+        # Colors
         h5_col = (
             np.array(f["ezdeprof/Col"], dtype=np.float64)
             if "ezdeprof/Col" in f
@@ -891,7 +891,7 @@ class IsosurfaceRenderer:
 
     Uses PyVista ``threshold`` + ``extract_surface`` to produce filled
     blocks equivalent to MATLAB's ``isosurface`` + ``isocaps`` pair.
-    Each element is rendered as a separate coloured solid body.
+    Each element is rendered as a separate colored solid body.
     """
 
     def __init__(self, data: DepthProfile4DData, config: AnimationConfig):
@@ -1037,12 +1037,12 @@ class IsosurfaceRenderer:
         sp: Tuple[float, float],
         up: Tuple[int, int] = (1, 1),
     ) -> Optional["pv.PolyData"]:
-        """Opaque isocap with concentration-weighted element colours.
+        """Opaque isocap with concentration-weighted element colors.
 
         Instead of overlapping semi-transparent per-element caps (which
-        blend into a washed-out pink — "桜色" artifact), produce a
-        single mesh with per-cell RGB colour = weighted average of
-        visible element colours by local concentration.
+        blend into a washed-out pink — the "cherry-blossom" artifact), produce a
+        single mesh with per-cell RGB color = weighted average of
+        visible element colors by local concentration.
 
         Parameters
         ----------
@@ -1081,7 +1081,7 @@ class IsosurfaceRenderer:
         if na < 2 or nb < 2:
             return None
 
-        # Upscale each element channel for smooth colour transitions
+        # Upscale each element channel for smooth color transitions
         if HAS_SCIPY and (up[0] > 1 or up[1] > 1):
             conc_up = np.stack(
                 [_ndimage_zoom(conc[:, :, i], up, order=1) for i in range(nv)],
@@ -1092,7 +1092,7 @@ class IsosurfaceRenderer:
 
         na_up, nb_up = conc_up.shape[:2]
 
-        # Cell-centre concentrations (average of 4 corner points)
+        # Cell-center concentrations (average of 4 corner points)
         c00 = conc_up[:-1, :-1, :]
         c10 = conc_up[1:, :-1, :]
         c01 = conc_up[:-1, 1:, :]
@@ -1134,7 +1134,7 @@ class IsosurfaceRenderer:
         else:
             return None
 
-        # Vectorised quad face construction
+        # Vectorized quad face construction
         stride = nc_b + 1
         i_idx = np.repeat(np.arange(nc_a), nc_b)
         j_idx = np.tile(np.arange(nc_b), nc_a)
@@ -1182,7 +1182,7 @@ class IsosurfaceRenderer:
         if cfg.lighting:
             plotter.enable_3_lights()
 
-        # Z-spacing for display: normalise so depth ≈ spatial scale
+        # Z-spacing for display: normalize so depth ≈ spatial scale
         spatial_extent = max(d.nx, d.ny)
         if d.n_depth > 1:
             z_display_spacing = spatial_extent / (d.n_depth - 1)
@@ -1214,7 +1214,7 @@ class IsosurfaceRenderer:
 
         # --- Per-element isosurface BODY (marching cubes contour) ---
         # Each element gets its own semi-transparent isosurface.
-        # Boundary caps are rendered separately as composite colour-blended
+        # Boundary caps are rendered separately as composite color-blended
         # meshes (see Phase 2 below) to avoid pink/washed-out overlap.
 
         # Need at least 2 voxels in each dimension for isosurface extraction
@@ -1303,9 +1303,9 @@ class IsosurfaceRenderer:
                 label=d.element_names[elem_idx],
             )
 
-        # --- Phase 2: Composite isocaps (concentration-weighted colour) ---
+        # --- Phase 2: Composite isocaps (concentration-weighted color) ---
         # Single opaque mesh per boundary face.  Eliminates the pink
-        # "桜色" artifact from overlapping per-element semi-transparent caps.
+        # "cherry-blossom" (washed-out pink) artifact from overlapping per-element semi-transparent caps.
         cap_defs = [
             # (axis, [(face_idx, pos), ...], spacing, upscale)
             (2, [(0, 0.0), (cnz - 1, z_max)],
@@ -1414,14 +1414,14 @@ class MatlabIsosurfaceRenderer:
 
     - ``meshgrid(y, x, z)``: world X carries the data *y* pixel index
       (1-based), world Y carries *x*, world Z carries physical depth in
-      Angstroms.  Mesh data is never normalised; the MATLAB axes
+      Angstroms.  Mesh data is never normalized; the MATLAB axes
       default stretch-to-fill (``DataAspectRatio`` auto — EzDeP4D sets
       no ``daspect``/``pbaspect``) is replicated at the display level
       via the renderer's per-axis actor scale.
     - Per frame, per element: threshold = ``max(V) * isovalue_degree``
       (``isovn`` in MATLAB), ``isosurface`` -> marching-cubes contour,
       ``isocaps`` -> interpolated cap mesh on the six boundary faces.
-    - Surface and caps share the element colour with
+    - Surface and caps share the element color with
       ``FaceAlpha = 0.75 * face_alpha``, no edges, Gouraud shading.
     - ``ZDir = 'reverse'``: implemented by negating world Z (surface at
       0, deeper = more negative) when ``config.z_reversed``.
@@ -1433,7 +1433,7 @@ class MatlabIsosurfaceRenderer:
       ``.Faces`` / ``.Vertices`` on the same patch handles).
 
     MATLAB's ``divx/divy = 50`` block decomposition (a ``parfor``
-    optimisation whose internal cap faces are deleted afterwards) is
+    optimization whose internal cap faces are deleted afterwards) is
     not replicated; computing on the full volume is visually
     equivalent.
 
@@ -1452,7 +1452,7 @@ class MatlabIsosurfaceRenderer:
     - ``PlotBoxAspectRatio`` depends only on the axes rectangle's aspect
       and the view direction, never on the data ranges (those are
       absorbed by ``DataAspectRatio``).  For a **square** axes it is
-      ``[1 1 1]``, which is what the cube normalisation here produces.
+      ``[1 1 1]``, which is what the cube normalization here produces.
       For a wide axes it is not: e.g. 327x220 px at ``view([-105 5])``
       gives ``[0.713 1 0.685]``, and 600x200 px gives ``[0.426 1 0.344]``.
       That non-square stretch is **not** derived automatically — set
@@ -1477,7 +1477,7 @@ class MatlabIsosurfaceRenderer:
     A frame-for-frame check against MATLAB's own ``isosurface`` /
     ``isocaps`` output (same data, same frame, square axes,
     ``FaceAlpha 0.75``) matches in cube proportions, layer boundaries
-    and colour; depth peeling is what closes the remaining gap.
+    and color; depth peeling is what closes the remaining gap.
     """
 
     # animate() keeps one plotter for the whole run instead of one per frame
@@ -1770,8 +1770,8 @@ class MatlabIsosurfaceRenderer:
                 # MATLAB `lighting gouraud`
                 actor.prop.SetInterpolationToGouraud()
                 # MATLAB SpecularColorReflectance = 1: the highlight takes
-                # the *light's* colour, not the material's.  PyVista derives
-                # every material colour from `color=`, which tints the
+                # the *light's* color, not the material's.  PyVista derives
+                # every material color from `color=`, which tints the
                 # highlight and loses that white lift.
                 actor.prop.specular_color = (1.0, 1.0, 1.0)
                 if not cfg.lighting:
@@ -1808,7 +1808,7 @@ class MatlabIsosurfaceRenderer:
             except Exception:
                 pass
 
-        # --- MATLAB stretch-to-fill (DataAspectRatio auto): normalise
+        # --- MATLAB stretch-to-fill (DataAspectRatio auto): normalize
         #     each axis at the actor level; mesh data stays physical ---
         if cfg.matlab_stretch_to_fill:
             box = cfg.plot_box_aspect or (1.0, 1.0, 1.0)
@@ -1825,7 +1825,7 @@ class MatlabIsosurfaceRenderer:
             )
 
         # Display-space bounds after the stretch (camera and light live
-        # in display space, like MATLAB's normalised plot box)
+        # in display space, like MATLAB's normalized plot box)
         bounds_disp = (
             wx0 * sx, wx1 * sx, wy0 * sy, wy1 * sy, wz0 * sz, wz1 * sz,
         )
@@ -1994,7 +1994,7 @@ class SliceRenderer:
     """MATLAB EzDeP4D ``sp=1`` style renderer — 6-face boundary textures.
 
     Instead of 3D isosurfaces, renders the bounding box faces as flat
-    textured quads with concentration-weighted RGB colour per cell.
+    textured quads with concentration-weighted RGB color per cell.
     Much faster than isosurface extraction and ideal for interactive use.
     """
 
@@ -2023,8 +2023,8 @@ class SliceRenderer:
     def _conc_to_rgb(self, conc_2d: np.ndarray) -> np.ndarray:
         """Convert (na, nb, n_vis) concentration to (na, nb, 3) RGB.
 
-        Each cell's colour is a concentration-weighted average of the
-        visible element colours.
+        Each cell's color is a concentration-weighted average of the
+        visible element colors.
         """
         colors_vis = self.data.colors[self.visible]  # (n_vis, 3)
         total = conc_2d.sum(axis=2, keepdims=True).clip(min=1e-10)
@@ -2045,7 +2045,7 @@ class SliceRenderer:
         Parameters
         ----------
         rgb : ndarray, shape (na, nb, 3)
-            Per-cell RGB colour (0-1).
+            Per-cell RGB color (0-1).
         axis : int
             Normal axis (0=X, 1=Y, 2=Z).
         pos : float
@@ -2061,7 +2061,7 @@ class SliceRenderer:
         if na < 1 or nb < 1:
             return None
 
-        # Cell-centre total concentration for masking
+        # Cell-center total concentration for masking
         total = rgb.sum(axis=2)  # proxy: bright = filled
         mask = total > threshold  # (na, nb)
         n_cells = int(mask.sum())
@@ -2071,7 +2071,7 @@ class SliceRenderer:
         sa, sb = sp
         ia, ib = np.where(mask)  # (n_cells,) each
 
-        # Vectorised quad construction — no Python loop
+        # Vectorized quad construction — no Python loop
         a0 = ia.astype(np.float32) * sa
         a1 = (ia + 1).astype(np.float32) * sa
         b0 = ib.astype(np.float32) * sb
@@ -2319,7 +2319,7 @@ class SliceRenderer:
         )
 
     def update_time_fast(self, t: int, plotter: "pv.Plotter") -> None:
-        """Fast path: update only RGB colours on cached meshes (no clear).
+        """Fast path: update only RGB colors on cached meshes (no clear).
 
         Only valid when clip ranges haven't changed since the last
         ``render_frame`` call.  Check ``can_fast_update()`` first.
@@ -2461,7 +2461,7 @@ class SliceRenderer:
             if mesh is None:
                 continue
 
-            # Initialise fully transparent
+            # Initialize fully transparent
             n_cells = mesh.n_cells
             rgba = np.zeros((n_cells, 4), dtype=np.uint8)
             mesh.cell_data["RGBA"] = rgba
@@ -2525,7 +2525,7 @@ class SliceRenderer:
     ) -> None:
         """Fast in-place update of all pre-allocated faces.
 
-        Updates RGBA colours (concentration + alpha mask) and vertex
+        Updates RGBA colors (concentration + alpha mask) and vertex
         positions for movable faces.  No mesh creation or deletion —
         all changes are data-only writes + ``Modified()`` calls.
 
@@ -2579,7 +2579,7 @@ class SliceRenderer:
             # --- RGB from concentration ---
             rgb = self._conc_to_rgb(sl)  # (na, nb, 3)
 
-            # --- Alpha mask (vectorised boolean arrays) ---
+            # --- Alpha mask (vectorized boolean arrays) ---
             idx_a = np.arange(na)
             idx_b = np.arange(nb)
 
@@ -2840,7 +2840,7 @@ def interactive(
     -------
     - **Time** (top): select time frame
     - **X cut** (bottom-left): clip X range ``[0, value]``
-    - **Y cut** (bottom-centre): clip Y range ``[0, value]``
+    - **Y cut** (bottom-center): clip Y range ``[0, value]``
     - **Z cut** (bottom-right): clip Z (depth) range ``[0, value]``
 
     Moving any clip slider to the maximum shows the full range (no clip).

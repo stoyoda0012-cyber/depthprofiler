@@ -1,25 +1,25 @@
-"""P1 契約: 既存のベンチマークで使ってきた指標（RMSE・W1・膜厚）の再実装（定義は変えない）と、
-**記録のみ**の観測残差。
+"""P1 contract: reimplementation of the metrics used in the existing benchmarks (RMSE, W1, thickness) without changing
+their definitions, and the observation residual, **recorded only**.
 
-主指標は総合 RMSE（全画素・全深さ・全元素の平均）と
-正準 W1（``depth_profile.wasserstein_distance_1d`` の (px, elem) ベクトル化。等価性はテストで固定）。
-膜厚は基板 0.5 交差の線形補間（``deppro.io.dstk.estimate_thickness`` と同じ規則）。
-NaN は JSON では null にし、valid 数を併記する。第 3 の定義は導入しない。
+The main metrics are the overall RMSE (mean over all pixels, depths and elements) and the
+canonical W1 (``depth_profile.wasserstein_distance_1d`` vectorized over (px, elem); equivalence is pinned by a test).
+Thickness is the linear interpolation of the substrate 0.5 crossing (same rule as ``deppro.io.dstk.estimate_thickness``).
+NaN is null in JSON, with the valid count alongside. No third definition is introduced.
 
-観測残差（再 forward）。生成側（``CalculateDistribution.m`` / ``TransformationMatrix.m``）が
-宣言する生成式:
+Observation residual (re-forward). The generation formula declared by the producer
+(``CalculateDistribution.m`` / ``TransformationMatrix.m``):
 
-    λ(z,i) = γ_eff / Σ_a D(z,a)/λ_basic(a,i)      （局所組成の調和平均。T は画素ごとに違う）
-    T(θ,z,i) = cumprod_z(exp(−Δz/(λ(z,i) cosθ))) / exp(·)   （z より上の層だけ）
-    I(θ,i) = Σ_z T(θ,z,i)·D(z,i)、ノイズは I に載る
-    X(θ,i) = I(θ,i) / Σ_j I(θ,j)                  （角度ごとに全元素で規格化）
+    λ(z,i) = γ_eff / Σ_a D(z,a)/λ_basic(a,i)      (harmonic mean of the local composition; T differs per pixel)
+    T(θ,z,i) = cumprod_z(exp(−Δz/(λ(z,i) cosθ))) / exp(·)   (only the layers above z)
+    I(θ,i) = Σ_z T(θ,z,i)·D(z,i); the noise is on I
+    X(θ,i) = I(θ,i) / Σ_j I(θ,j)                  (normalized over elements per angle)
 
-``composition_transfer_matrix`` + ``forward`` はこの式そのもの。
-ファイルの ``TransMatObs`` は**単一の stack の T**（保存時点のもの）なので、それを全画素に流用すると
-組成に応じた残差が出る。これは T の取り違えによるもので、モデルの床ではない。
-**合否**は ``closure_gate`` が付ける: noise = 0 のデータセットに対してだけ PASS/FAIL（許容差は
-float32 格納精度に対する余裕を持たせた絶対値）、noise > 0 では RECORDED（noise モデルの版と実効値は
-producer 契約待ち）。GT を総和 1 に正規化してはならない（``Dstk`` は格納値のまま比較する）。
+``composition_transfer_matrix`` + ``forward`` are this formula as is.
+The file's ``TransMatObs`` is **the T of a single stack** (at save time), so reusing it for every pixel
+leaves a composition-dependent residual. That comes from the wrong T, not from a model floor.
+**Pass/fail** is assigned by ``closure_gate``: PASS/FAIL only for datasets with noise = 0 (the tolerance is an
+absolute value with margin over float32 storage precision); with noise > 0 it is RECORDED (the noise model
+version and effective value await the producer contract). The GT must not be normalized to sum 1 (``Dstk`` is compared as stored).
 """
 from __future__ import annotations
 
@@ -38,18 +38,18 @@ REFORWARD_FORMULA_VERSION = (
     "T=cumprod_z(exp(-dz/(lambda cos theta)))/exp(.); I=sum_z T*D; noise on I; "
     "X=I/sum_j I per angle. "
     "Stored TransMatObs is a single stack's T, so a shared-T residual is expected.")
-# noise = 0 の閉包ゲート許容差。float32 格納精度 (eps32·max X ≈ 9e-8) に対して約 10 倍、
-# ノイズゼロの生成データで観測された最大残差 3e-7 に対して約 3 倍の余裕。
+# Closure-gate tolerance for noise = 0. About 10x the float32 storage precision (eps32·max X ≈ 9e-8),
+# and about 3x the largest residual observed on noise-free generated data, 3e-7.
 CLOSURE_TOL_ABS_NOISEFREE = 1e-6
-GT_EMPTY_THRESHOLD = 1e-6          # depth_profile.wasserstein_distance_1d と同じ
+GT_EMPTY_THRESHOLD = 1e-6          # same as depth_profile.wasserstein_distance_1d
 
 
 # --------------------------------------------------------------------------
 def w1_matrix(D: np.ndarray, Dgt: np.ndarray, depth: np.ndarray) -> np.ndarray:
-    """(px, elem) の正準 W1 [Å]。GT の質量が閾値未満なら NaN（deppro 慣例）。
+    """Canonical W1 [Å] per (px, elem). NaN where the GT mass is below the threshold (deppro convention).
 
-    ``wasserstein_distance_1d(depth, gt, est)`` を各 (px, elem) に適用したものと一致する
-    （テストで固定）。
+    Agrees with ``wasserstein_distance_1d(depth, gt, est)`` applied to each (px, elem)
+    (pinned by a test).
     """
     D = np.asarray(D, dtype=np.float64)
     Dgt = np.asarray(Dgt, dtype=np.float64)
@@ -66,7 +66,7 @@ def w1_matrix(D: np.ndarray, Dgt: np.ndarray, depth: np.ndarray) -> np.ndarray:
 
 
 def thickness_half_crossing(D_px: np.ndarray, depth: np.ndarray, substrate_idx: int) -> float:
-    """基板濃度が 0.5 を初めて超える位置を線形補間（deppro.io.dstk.estimate_thickness と同じ規則）。"""
+    """Linear interpolation of the first position where the substrate concentration exceeds 0.5 (same rule as deppro.io.dstk.estimate_thickness)."""
     D_sub = np.asarray(D_px)[:, substrate_idx]
     crossings = np.where(D_sub >= 0.5)[0]
     if len(crossings) == 0:
@@ -89,10 +89,10 @@ def thickness_array(D: np.ndarray, depth: np.ndarray, substrate_idx: int) -> np.
 # --------------------------------------------------------------------------
 def composition_transfer_matrix(D: np.ndarray, lambda_basic: np.ndarray, angles_deg: np.ndarray,
                                 step: float, gamma_eff: float) -> np.ndarray:
-    """組成依存の転送行列 T(D)。``deppro.transfer_matrix`` の一様格子カーネルと同じ式。
+    """Composition-dependent transfer matrix T(D). Same formula as the uniform-grid kernel of ``deppro.transfer_matrix``.
 
     D: (n, depth, elem) → T: (n, angle, depth, elem)。
-    λ_obs(z,e) = γ / Σ_i D(z,i)/λ_basic(e,i)（Σ=0 は 1e-10）、
+    λ_obs(z,e) = γ / Σ_i D(z,i)/λ_basic(e,i) (Σ=0 gives 1e-10),
     T(a,z,e) = exp(Σ_{z'<z} −step / (λ_obs(z',e) cos a)) = exp(cumsum(t1) − t1)。
     """
     D = np.asarray(D, dtype=np.float64)
@@ -105,7 +105,7 @@ def composition_transfer_matrix(D: np.ndarray, lambda_basic: np.ndarray, angles_
 
 
 def forward(T: np.ndarray, D: np.ndarray) -> np.ndarray:
-    """X̂ = normalise_angle(Σ_z T·D)。T は共有 (A,Z,E) か画素別 (n,A,Z,E)。暫定式（docstring 参照）。"""
+    """X̂ = normalize_angle(Σ_z T·D). T is shared (A,Z,E) or per pixel (n,A,Z,E). Provisional formula (see docstring)."""
     D = np.asarray(D, dtype=np.float64)
     if T.ndim == 3:
         Xp = np.einsum("aze,nze->nae", T, D)
@@ -118,7 +118,7 @@ def forward(T: np.ndarray, D: np.ndarray) -> np.ndarray:
 # --------------------------------------------------------------------------
 def _nan_stats(w1: np.ndarray):
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)          # All-NaN slice → NaN は仕様
+        warnings.simplefilter("ignore", RuntimeWarning)          # all-NaN slice → NaN is intended
         return np.nanmean(w1, axis=0), np.nanmedian(w1, axis=0), np.sum(~np.isnan(w1), axis=0)
 
 
@@ -142,12 +142,12 @@ def _metrics_block(D: np.ndarray, Dgt: np.ndarray, depth: np.ndarray, labels: Se
             "w1_valid_px_per_element": dict(zip(labels, map(int, w1_valid))),
             "w1_meanpx_all_A": float(np.nanmean(w1_mean)),
             "w1_meanpx_free_A": float(np.nanmean(w1_mean[free])) if free else None,
-            "w1_medianpx_all_A": float(np.nanmean(w1_med)),      # 元素ごとの画素中央値を元素平均
+            "w1_medianpx_all_A": float(np.nanmean(w1_med)),      # per-element pixel median, averaged over elements
             "w1_medianpx_free_A": float(np.nanmean(w1_med[free])) if free else None,
             "thickness_mae_A": float(thk.mean()),
             "thickness_err_median_A": float(np.median(thk)),
         }
-    if len(free) == 5:                                           # 秋の表と同じキー名を併記
+    if len(free) == 5:                                           # also under the key names of the autumn table
         out["rmse_free5_mean"] = out["rmse_free_mean"]
         out["w1_meanpx_free5_A"] = out["w1_meanpx_free_A"]
         out["w1_medianpx_free5_A"] = out["w1_medianpx_free_A"]
@@ -157,7 +157,7 @@ def _metrics_block(D: np.ndarray, Dgt: np.ndarray, depth: np.ndarray, labels: Se
 def evaluate(D_est: np.ndarray, gt: GroundTruth, spec: ProblemSpec, *,
              free: Optional[Sequence[int]] = None, substrate_idx: Optional[int] = None,
              per_frame: bool = False) -> Dict[str, Any]:
-    """既存指標をそのまま計算する。GT は格納値のまま（再正規化しない）。NaN は JSON で null。"""
+    """Compute the existing metrics as they are. The GT is used as stored (not renormalized). NaN is null in JSON."""
     D_est = np.asarray(D_est, dtype=np.float64)
     if D_est.shape != gt.D.shape:
         raise ValueError(f"D_est {D_est.shape} vs GT {gt.D.shape}")
@@ -183,11 +183,11 @@ def evaluate(D_est: np.ndarray, gt: GroundTruth, spec: ProblemSpec, *,
 
 def observation_residual(spec: ProblemSpec, D: np.ndarray, *, mask_X_gt: float = 0.02,
                          mode: str = "stored_T") -> Dict[str, Any]:
-    """再 forward の残差を**記録**する（合否は ``closure_gate``）。
+    """**Record** the residual of the re-forward (pass/fail is ``closure_gate``).
 
-    mode: ``stored_T`` = 保存 TransMatObs（単一 stack の作用素）を全画素に流用 — 組成依存の分だけ
-    残差が出る（説明済み）。``composition_T`` = 各画素の D から T(D) を組み直す生成式そのもの
-    （lambda_basic と gamma_eff が要る）。
+    mode: ``stored_T`` = the stored TransMatObs (operator of a single stack) reused for every pixel — a residual
+    appears to the extent of the composition dependence (explained above). ``composition_T`` = T(D) rebuilt
+    from each pixel's D, the generation formula itself (needs lambda_basic and gamma_eff).
     """
     D = np.asarray(D, dtype=np.float64)
     if mode == "stored_T":
@@ -230,12 +230,12 @@ def observation_residual(spec: ProblemSpec, D: np.ndarray, *, mask_X_gt: float =
 
 def closure_gate(spec: ProblemSpec, D_gt: np.ndarray, *, tol_abs: float = CLOSURE_TOL_ABS_NOISEFREE,
                  mask_X_gt: float = 0.02) -> Dict[str, Any]:
-    """GT → 観測の閉包ゲート。生成式（producer-declared/1）で GT から X を作り、格納 X と比べる。
+    """GT → observation closure gate. Builds X from the GT with the generation formula (producer-declared/1) and compares with the stored X.
 
-    * noise == 0: max|X̂−X| ≤ tol_abs なら PASS、超えれば FAIL。許容差は float32 格納精度基準。
-    * noise > 0 : RECORDED（ノイズ実現分が乗るので合否は付けない。noise モデルの版は契約待ち）。
-    * lambda_basic / gamma_eff が無い: NA。
-    GT は格納値のまま使う（再正規化しない）。
+    * noise == 0: PASS if max|X̂−X| ≤ tol_abs, FAIL otherwise. The tolerance is based on float32 storage precision.
+    * noise > 0 : RECORDED (the noise realization is on top, so no pass/fail. The noise model version awaits the contract).
+    * lambda_basic / gamma_eff missing: NA.
+    The GT is used as stored (not renormalized).
     """
     D_gt = np.asarray(D_gt, dtype=np.float64)
     if spec.lambda_basic is None or spec.gamma_eff is None:
@@ -265,8 +265,8 @@ def closure_gate(spec: ProblemSpec, D_gt: np.ndarray, *, tol_abs: float = CLOSUR
             out.update(status="FAIL",
                        note=f"noise 0 but max|X_hat-X| exceeds tol {tol_abs:g}: generator version or "
                             "forward differs from producer-declared/1 (do not renormalise GT to fit)")
-            # 診断補助（合否は変えない）: 保存 lambdabasic の向きが MATLAB dialect と逆（転置）なら
-            # 再現するか。2026-09-09 の Python producer の実例（値は manifest と一致、H5 の向きだけ逆）。
+            # Diagnostic aid (does not change pass/fail): whether it reproduces when the stored lambdabasic is
+            # oriented opposite to the MATLAB dialect (transposed). Real case of the Python producer on 2026-09-09 (values matched the manifest; only the H5 orientation was reversed).
             if spec.lambda_basic.shape[0] == spec.lambda_basic.shape[1]:
                 T_t = composition_transfer_matrix(D_gt, spec.lambda_basic.T, spec.axes.angles_deg,
                                                   spec.axes.step_A, spec.gamma_eff)

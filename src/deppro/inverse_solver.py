@@ -224,7 +224,7 @@ class SolverConfig:
         Chosen in a verification with an Al2O3/SiO2/Si 3-layer system
         (2026-01-29). The RMSE ≈ 0.056 recorded then does not reproduce:
         examples/freesolver_recommended.py gives a concentration RMSE of about
-        0.13 (see docs/api_reference.md, "FreeSolver の例").
+        0.13 (see docs/api_reference.md, "FreeSolver example").
 
         Usage:
             config = SolverConfig.recommended()
@@ -2099,7 +2099,7 @@ class SemiFreeSolver:
         Returns:
             Substrate profile (n_depth, n_substrate_elements)
         """
-        # 段階 -1 の抽出: 本体は semifree_parametrization へ移した（挙動不変）。
+        # Stage -1 extraction: the body moved to semifree_parametrization (behavior unchanged).
         return _build_substrate_profile_pure(
             self.depth, thickness, abruptness, substrate_ratios,
             use_numba=self.use_numba,
@@ -2138,8 +2138,8 @@ class SemiFreeSolver:
             free_conc = self._apply_gradient_to_profile(free_conc, gradient_params)
 
         # Use stoichiometric mode if configured
-        # NOTE: normalize_free_conc は charge_balance 側（抽出先）で適用されるので、
-        # stoichiometric へ入る前にここで適用する（抽出前と同じ順序）。
+        # NOTE: normalize_free_conc is applied on the charge_balance side (the extraction target), so
+        # it is applied here before entering stoichiometric (same order as before the extraction).
         if self._stoichiometric_mode == 'stoichiometric':
             if self.semi_free_config.normalize_free_conc:
                 weighted_sum = np.sum(free_conc * self.free_linked_const, axis=1, keepdims=True)
@@ -2149,7 +2149,7 @@ class SemiFreeSolver:
                 free_conc, thickness, abruptness, substrate_ratios
             )
 
-        # 段階 -1 の抽出: charge_balance 本体は semifree_parametrization へ移した（挙動不変）。
+        # Stage -1 extraction: the charge_balance body moved to semifree_parametrization (behavior unchanged).
         return _build_full_profile_core(
             free_conc, thickness, abruptness, substrate_ratios,
             depth=self.depth,
@@ -3916,7 +3916,7 @@ class SemiFreeSolver:
                     # that satisfies the equality constraints only to ~1e-7. A
                     # short SLSQP restart from there is meant to converge and
                     # satisfy the constraints. The status-8/4 and condition routes
-                    # keep their previous behaviour.
+                    # keep their previous behavior.
                     if _no_progress:
                         result_pl = minimize(
                             objective,
@@ -4272,49 +4272,49 @@ def reconstruct_depth_profile(
 @dataclass
 class LayerDefinition:
     """
-    単一層の定義
+    Definition of one layer
 
     Parameters
     ----------
     name : str
-        層の名前 (e.g., "SiO2", "contamination", "SiOxNy")
+        Layer name (e.g., "SiO2", "contamination", "SiOxNy")
     element_indices : List[int]
-        この層に存在する元素のインデックス
+        Indices of the elements present in this layer
     stoichiometry : Dict[int, float]
-        元素インデックス → 化学量論比のマッピング
-        例: SiO2 = {0: 1, 1: 2} (Si:O = 1:2)
+        Mapping element index → stoichiometric ratio
+        Example: SiO2 = {0: 1, 1: 2} (Si:O = 1:2)
     stoichiometry_bounds : Dict[int, Tuple[float, float]], optional
-        元素インデックス → (min, max) 化学量論比の可変範囲
-        指定した元素の化学量論比を最適化パラメータとして扱う
-        例: {1: (1.5, 2.0)} → O比を1.5〜2.0で最適化（酸素欠損対応）
+        Mapping element index → (min, max) range of the stoichiometric ratio
+        The stoichiometric ratio of the given elements becomes an optimization parameter
+        Example: {1: (1.5, 2.0)} → optimize the O ratio within 1.5-2.0 (oxygen deficiency)
     profile_type : str
         "erf" (default), "gaussian", "exponential"
     base_concentration : float
-        層内での基準濃度 (正規化前)
+        Reference concentration within the layer (before normalization)
 
     Examples
     --------
-    >>> # SiO2層（固定組成）
+    >>> # SiO2 layer (fixed composition)
     >>> sio2_layer = LayerDefinition(
     ...     name="SiO2",
     ...     element_indices=[0, 1],  # Si_ox, O
     ...     stoichiometry={0: 1, 1: 2},
     ... )
 
-    >>> # SiOx層（酸素欠損、組成可変）
+    >>> # SiOx layer (oxygen deficient, variable composition)
     >>> siox_layer = LayerDefinition(
     ...     name="SiOx",
     ...     element_indices=[0, 1],  # Si_ox, O
-    ...     stoichiometry={0: 1, 1: 2.0},  # 初期値
-    ...     stoichiometry_bounds={1: (1.5, 2.0)},  # O比を最適化
+    ...     stoichiometry={0: 1, 1: 2.0},  # initial value
+    ...     stoichiometry_bounds={1: (1.5, 2.0)},  # optimize the O ratio
     ... )
 
-    >>> # SiOxNy層（窒化膜、N/O比可変）
+    >>> # SiOxNy layer (nitride, variable N/O ratio)
     >>> sion_layer = LayerDefinition(
     ...     name="SiOxNy",
     ...     element_indices=[0, 1, 2],  # Si, O, N
-    ...     stoichiometry={0: 3, 1: 1, 2: 3},  # 初期値
-    ...     stoichiometry_bounds={1: (0, 2), 2: (2, 4)},  # O, N比を最適化
+    ...     stoichiometry={0: 3, 1: 1, 2: 3},  # initial value
+    ...     stoichiometry_bounds={1: (0, 2), 2: (2, 4)},  # optimize the O and N ratios
     ... )
     """
     name: str
@@ -4326,12 +4326,12 @@ class LayerDefinition:
 
     @property
     def has_variable_stoichiometry(self) -> bool:
-        """組成可変パラメータがあるか"""
+        """Whether there are variable-composition parameters"""
         return self.stoichiometry_bounds is not None and len(self.stoichiometry_bounds) > 0
 
     @property
     def n_stoich_params(self) -> int:
-        """組成可変パラメータの数"""
+        """Number of variable-composition parameters"""
         if self.stoichiometry_bounds is None:
             return 0
         return len(self.stoichiometry_bounds)
@@ -4340,33 +4340,33 @@ class LayerDefinition:
 @dataclass
 class GenericLayerConfig:
     """
-    汎用層構造ソルバーの設定
+    Configuration of the generic layer-structure solver
 
-    任意の層数に対応。層の定義から自動的にプロファイルを構築。
+    Any number of layers. The profile is built automatically from the layer definitions.
 
     Parameters
     ----------
     layers : List[LayerDefinition]
-        表面から基板に向かう順の層定義リスト
+        List of layer definitions, from the surface toward the substrate
     substrate : LayerDefinition
-        基板の定義
+        Definition of the substrate
     initial_thicknesses : List[float]
-        各層の初期膜厚 [Å]
+        Initial thickness of each layer [Å]
     initial_widths : List[float]
-        各界面の初期幅 [Å]
+        Initial width of each interface [Å]
     optimize_widths : bool
-        界面幅を最適化するか (デフォルト: False、固定推奨)
+        Whether to optimize the interface widths (default: False; keeping them fixed is recommended)
     thickness_bounds : Tuple[float, float]
-        膜厚の境界 (min, max)
+        Thickness bounds (min, max)
     width_bounds : Tuple[float, float]
-        界面幅の境界 (min, max)
+        Interface-width bounds (min, max)
     linked_element_index : Optional[int]
-        電荷保存で決まる元素のインデックス (e.g., O)
-        Noneの場合は化学量論から自動計算しない
+        Index of the element determined by charge conservation (e.g., O)
+        With None, it is not computed automatically from the stoichiometry
 
     Examples
     --------
-    >>> # SiO2/Si 1層系
+    >>> # SiO2/Si single-layer system
     >>> config = GenericLayerConfig(
     ...     layers=[
     ...         LayerDefinition(
@@ -4390,24 +4390,24 @@ class GenericLayerConfig:
     initial_thicknesses: List[float]
     initial_widths: List[float]
     optimize_widths: bool = False
-    optimize_stoichiometry: bool = False  # 組成比を最適化するか
+    optimize_stoichiometry: bool = False  # whether to optimize the stoichiometric ratios
     thickness_bounds: Tuple[float, float] = (1.0, 200.0)
     width_bounds: Tuple[float, float] = (0.5, 30.0)
     linked_element_index: Optional[int] = None
 
     @property
     def n_layers(self) -> int:
-        """層数（基板を除く）"""
+        """Number of layers (excluding the substrate)"""
         return len(self.layers)
 
     @property
     def n_stoich_params(self) -> int:
-        """全層の組成可変パラメータの合計数"""
+        """Total number of variable-composition parameters over all layers"""
         return sum(layer.n_stoich_params for layer in self.layers)
 
     @property
     def has_variable_stoichiometry(self) -> bool:
-        """組成可変パラメータがあるか"""
+        """Whether there are variable-composition parameters"""
         return any(layer.has_variable_stoichiometry for layer in self.layers)
 
     def __post_init__(self):
@@ -4422,7 +4422,7 @@ class GenericLayerConfig:
                 f"initial_widths ({len(self.initial_widths)}) must match "
                 f"number of layers ({len(self.layers)})"
             )
-        # optimize_stoichiometryがTrueなのに可変パラメータがない場合は警告
+        # Warn when optimize_stoichiometry is True but there are no variable parameters
         if self.optimize_stoichiometry and not self.has_variable_stoichiometry:
             import warnings
             warnings.warn(
@@ -4433,19 +4433,19 @@ class GenericLayerConfig:
 
 @dataclass
 class GenericLayerResult:
-    """汎用層構造ソルバーの結果"""
-    D_opt: np.ndarray                    # 最適化された深さプロファイル
-    I_opt: np.ndarray                    # 順問題予測値
-    layer_thicknesses: np.ndarray        # 最適化された膜厚
-    interface_widths: np.ndarray         # 最適化された界面幅
-    chi2: float                          # Chi²値
-    objective: float                     # 目的関数値
-    n_iterations: int                    # 反復回数
-    elapsed_time: float                  # 計算時間
-    success: bool                        # 収束フラグ
-    # 組成最適化結果（Optional）
-    layer_stoichiometries: Optional[List[Dict[int, float]]] = None  # 各層の最適化された化学量論比
-    assumptions: Optional[Dict[str, any]] = None  # 使用した仮定（可視化用）
+    """Result of the generic layer-structure solver"""
+    D_opt: np.ndarray                    # optimized depth profile
+    I_opt: np.ndarray                    # forward prediction
+    layer_thicknesses: np.ndarray        # optimized thicknesses
+    interface_widths: np.ndarray         # optimized interface widths
+    chi2: float                          # Chi² value
+    objective: float                     # objective value
+    n_iterations: int                    # number of iterations
+    elapsed_time: float                  # computation time
+    success: bool                        # convergence flag
+    # Composition optimization results (optional)
+    layer_stoichiometries: Optional[List[Dict[int, float]]] = None  # optimized stoichiometric ratios of each layer
+    assumptions: Optional[Dict[str, any]] = None  # the assumptions used (for display)
 
     @property
     def rmse(self) -> float:
@@ -4453,21 +4453,21 @@ class GenericLayerResult:
         return np.sqrt(self.chi2 / self.I_opt.size)
 
     def summary(self) -> str:
-        """結果のサマリーを文字列で返す（仮定を含む）"""
+        """Return a summary of the result as a string (including the assumptions)"""
         lines = [
             "=== GenericLayerSolver Result ===",
-            f"膜厚: {self.layer_thicknesses}",
-            f"界面幅: {self.interface_widths}",
+            f"Thicknesses: {self.layer_thicknesses}",
+            f"Interface widths: {self.interface_widths}",
             f"Chi²: {self.chi2:.6f}",
             f"RMSE: {self.rmse:.6f}",
-            f"収束: {self.success}",
+            f"Converged: {self.success}",
         ]
         if self.layer_stoichiometries:
-            lines.append("組成比:")
+            lines.append("Stoichiometric ratios:")
             for i, stoich in enumerate(self.layer_stoichiometries):
                 lines.append(f"  Layer {i}: {stoich}")
         if self.assumptions:
-            lines.append("使用した仮定:")
+            lines.append("Assumptions used:")
             for key, val in self.assumptions.items():
                 lines.append(f"  {key}: {val}")
         return "\n".join(lines)
@@ -4475,28 +4475,28 @@ class GenericLayerResult:
 
 class GenericLayerSolver:
     """
-    汎用層構造ソルバー
+    Generic layer-structure solver
 
-    任意の層数に対応する層構造最適化ソルバー。
-    膜厚（と界面幅）のみを最適化し、濃度は化学量論から決定。
+    A layer-structure optimization solver for any number of layers.
+    Optimizes only the thicknesses (and interface widths); concentrations follow from the stoichiometry.
 
-    SiO2/Si のような単純系から、C/Al2O3/TiO2/SiO2/Si のような
-    複雑な多層膜まで対応可能。
+    Handles simple systems such as SiO2/Si as well as complex multilayers such as
+    C/Al2O3/TiO2/SiO2/Si.
 
     Parameters
     ----------
     transfer_matrix : TransferMatrix
-        転送行列
+        Transfer matrix
     config : SolverConfig
-        ソルバー設定
+        Solver configuration
     layer_config : GenericLayerConfig
-        層構造設定
+        Layer-structure configuration
     elements : List[ElementConfig], optional
-        元素設定（IMFP計算用）
+        Element configuration (for the IMFP calculation)
 
     Examples
     --------
-    >>> # SiO2/Si 1層系
+    >>> # SiO2/Si single-layer system
     >>> config = GenericLayerConfig(
     ...     layers=[LayerDefinition("SiO2", [0, 1], {0: 1, 1: 2})],
     ...     substrate=LayerDefinition("Si", [2], {2: 1}),
@@ -4506,7 +4506,7 @@ class GenericLayerSolver:
     ... )
     >>> solver = GenericLayerSolver(tm, SolverConfig(method='LLS'), config)
     >>> result = solver.solve(I_obs)
-    >>> print(f"膜厚: {result.layer_thicknesses[0]:.2f} Å")
+    >>> print(f"Thickness: {result.layer_thicknesses[0]:.2f} Å")
     """
 
     def __init__(
@@ -4535,78 +4535,78 @@ class GenericLayerSolver:
         layer_stoichiometries: Optional[List[Dict[int, float]]] = None,
     ) -> np.ndarray:
         """
-        構造パラメータから深さプロファイルを構築
+        Build the depth profile from the structure parameters
 
         Parameters
         ----------
         thicknesses : ndarray
-            各層の膜厚 [n_layers]
+            Thickness of each layer [n_layers]
         widths : ndarray
-            各界面の幅 [n_layers]
+            Width of each interface [n_layers]
         layer_stoichiometries : List[Dict[int, float]], optional
-            各層の化学量論比（可変組成用）。Noneの場合はLayerDefinitionの値を使用
+            Stoichiometric ratios of each layer (for variable composition). With None, the LayerDefinition values are used
 
         Returns
         -------
         D : ndarray
-            深さプロファイル [n_depth, n_elements]
+            Depth profile [n_depth, n_elements]
         """
         cfg = self.layer_config
         z = self.depth
         n_layers = cfg.n_layers
 
-        # 組成が指定されていない場合はデフォルトを使用
+        # Use the defaults when no composition is given
         if layer_stoichiometries is None:
             layer_stoichiometries = [dict(layer.stoichiometry) for layer in cfg.layers]
 
-        # 初期化
+        # Initialize
         D = np.zeros((self.n_depth, self.n_elements))
 
-        # 累積膜厚を計算
+        # Cumulative thicknesses
         cumulative_thicknesses = np.cumsum(thicknesses)
 
         # sigma = FWHM / (2 * sqrt(ln(2)))
         sigmas = widths / (2 * np.sqrt(np.log(2)))
 
-        # 各層のプロファイルを計算
+        # Profile of each layer
         layer_profiles = []
 
         for i, layer in enumerate(cfg.layers):
-            # 層の開始・終了位置
+            # Start and end of the layer
             z_start = 0 if i == 0 else cumulative_thicknesses[i - 1]
             z_end = cumulative_thicknesses[i]
 
-            # sigmaの設定
+            # sigma
             sigma_start = sigmas[0] if i == 0 else sigmas[i - 1]
             sigma_end = sigmas[i]
 
             if layer.profile_type == "erf":
-                # erf関数で層を定義
+                # Define the layer with erf
                 rising = 0.5 * (1 + erf((z - z_start) / sigma_start)) if i > 0 else np.ones_like(z)
                 falling = 0.5 * (1 + erf((z - z_end) / sigma_end))
                 profile = np.maximum(rising - falling, 0)
             elif layer.profile_type == "exponential":
-                # 指数減衰（表面汚染層向け）
+                # Exponential decay (for surface contamination layers)
                 decay = np.exp(-z / max(thicknesses[i], 1.0))
                 cutoff = 1 - 0.5 * (1 + erf((z - z_end) / sigma_end))
                 profile = decay * cutoff
             else:
-                # デフォルトはerf
+                # erf by default
                 rising = 0.5 * (1 + erf((z - z_start) / sigma_start)) if i > 0 else np.ones_like(z)
                 falling = 0.5 * (1 + erf((z - z_end) / sigma_end))
                 profile = np.maximum(rising - falling, 0)
 
             layer_profiles.append(profile)
 
-            # 可変組成を使用
+            # Use the variable composition
             stoich = layer_stoichiometries[i]
             total_stoich = sum(stoich.values())
             for elem_idx, elem_stoich in stoich.items():
                 if cfg.linked_element_index is not None and elem_idx == cfg.linked_element_index:
-                    continue  # linkedは後で計算
+                    continue  # linked is computed later
                 D[:, elem_idx] += layer.base_concentration * (elem_stoich / total_stoich) * profile
 
-        # 基板
+        # Substrate
         z_sub = cumulative_thicknesses[-1] if n_layers > 0 else 0
         sigma_sub = sigmas[-1] if n_layers > 0 else 1.0
         substrate_profile = 0.5 * (1 + erf((z - z_sub) / sigma_sub))
@@ -4615,11 +4615,11 @@ class GenericLayerSolver:
         for elem_idx, stoich in cfg.substrate.stoichiometry.items():
             D[:, elem_idx] += (stoich / total_stoich) * substrate_profile
 
-        # linked元素の計算（電荷保存）
+        # Linked elements (charge conservation)
         if cfg.linked_element_index is not None:
             linked_idx = cfg.linked_element_index
 
-            # 簡略化: linked = sum(layer_profiles * linked_stoich / total_stoich)
+            # Simplified: linked = sum(layer_profiles * linked_stoich / total_stoich)
             D[:, linked_idx] = 0
             for i, layer in enumerate(cfg.layers):
                 stoich = layer_stoichiometries[i]
@@ -4628,7 +4628,7 @@ class GenericLayerSolver:
                     linked_stoich = stoich[linked_idx]
                     D[:, linked_idx] += layer.base_concentration * (linked_stoich / total_stoich) * layer_profiles[i]
 
-        # クリップと正規化
+        # Clip and normalize
         D = np.clip(D, 1e-6, None)
         total = D.sum(axis=1, keepdims=True)
         D = D / np.maximum(total, 1e-10)
@@ -4637,18 +4637,18 @@ class GenericLayerSolver:
 
     def _pack_stoichiometry_params(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, List[Tuple[int, int]]]:
         """
-        組成可変パラメータをベクトルにパック
+        Pack the variable-composition parameters into a vector
 
         Returns
         -------
         stoich_init : ndarray
-            初期値ベクトル
+            Initial-value vector
         stoich_lb : ndarray
-            下限ベクトル
+            Lower-bound vector
         stoich_ub : ndarray
-            上限ベクトル
+            Upper-bound vector
         stoich_map : List[Tuple[int, int]]
-            (layer_idx, element_idx) のマッピング
+            Mapping of (layer_idx, element_idx)
         """
         cfg = self.layer_config
         stoich_init = []
@@ -4677,25 +4677,25 @@ class GenericLayerSolver:
         stoich_map: List[Tuple[int, int]],
     ) -> List[Dict[int, float]]:
         """
-        組成パラメータをレイヤーごとの辞書に展開
+        Unpack the composition parameters into per-layer dicts
 
         Returns
         -------
         layer_stoichiometries : List[Dict[int, float]]
-            各層の化学量論比（更新済み）
+            Stoichiometric ratios of each layer (updated)
         """
         cfg = self.layer_config
-        # 初期値をコピー
+        # Copy the initial values
         layer_stoichiometries = [dict(layer.stoichiometry) for layer in cfg.layers]
 
-        # 最適化パラメータで更新
+        # Update with the optimization parameters
         for i, (layer_idx, elem_idx) in enumerate(stoich_map):
             layer_stoichiometries[layer_idx][elem_idx] = stoich_params[i]
 
         return layer_stoichiometries
 
     def _build_assumptions_dict(self) -> Dict[str, any]:
-        """使用する仮定を辞書にまとめる（可視化用）"""
+        """Collect the assumptions used into a dict (for display)"""
         cfg = self.layer_config
         assumptions = {
             'optimize_widths': cfg.optimize_widths,
@@ -4705,14 +4705,14 @@ class GenericLayerSolver:
             'variable_parameters': [],
         }
 
-        # 固定パラメータ
+        # Fixed parameters
         if not cfg.optimize_widths:
             assumptions['fixed_parameters'].append(f'interface_widths={cfg.initial_widths}')
         if not cfg.optimize_stoichiometry:
             for i, layer in enumerate(cfg.layers):
                 assumptions['fixed_parameters'].append(f'layer[{i}].stoichiometry={layer.stoichiometry}')
 
-        # 可変パラメータ
+        # Variable parameters
         assumptions['variable_parameters'].append('thicknesses')
         if cfg.optimize_widths:
             assumptions['variable_parameters'].append('interface_widths')
@@ -4732,14 +4732,14 @@ class GenericLayerSolver:
         verbose: bool = False,
     ) -> GenericLayerResult:
         """
-        逆問題を解く
+        Solve the inverse problem
 
         Parameters
         ----------
         I_obs : ndarray
-            観測強度 [n_angles, n_elements]
+            Observed intensities [n_angles, n_elements]
         verbose : bool
-            詳細出力
+            Verbose output
 
         Returns
         -------
@@ -4749,20 +4749,20 @@ class GenericLayerSolver:
         cfg = self.layer_config
         n_layers = cfg.n_layers
 
-        # 観測値の正規化
+        # Normalize the observations
         I_obs_norm = I_obs / np.maximum(I_obs.sum(axis=1, keepdims=True), 1e-10)
 
-        # 初期値
+        # Initial values
         thicknesses_init = np.array(cfg.initial_thicknesses)
         widths_init = np.array(cfg.initial_widths)
 
-        # 組成パラメータの準備
+        # Composition parameters
         stoich_init, stoich_lb, stoich_ub, stoich_map = self._pack_stoichiometry_params()
         n_stoich = len(stoich_init)
         optimize_stoich = cfg.optimize_stoichiometry and n_stoich > 0
 
-        # 最適化変数のパック
-        # 構造: [thicknesses, (widths), (stoichiometry)]
+        # Pack the optimization variables
+        # Structure: [thicknesses, (widths), (stoichiometry)]
         x0_parts = [thicknesses_init]
         lb_parts = [np.full(n_layers, cfg.thickness_bounds[0])]
         ub_parts = [np.full(n_layers, cfg.thickness_bounds[1])]
@@ -4782,17 +4782,17 @@ class GenericLayerSolver:
         ub = np.concatenate(ub_parts)
         bounds = Bounds(lb=lb, ub=ub)
 
-        # 転送行列
+        # Transfer matrix
         T_matrices = [self.tm.get_matrix(e) for e in range(self.n_elements)]
 
-        # インデックス計算用
+        # For index arithmetic
         idx_thickness_end = n_layers
         idx_width_end = idx_thickness_end + (n_layers if cfg.optimize_widths else 0)
         idx_stoich_end = idx_width_end + (n_stoich if optimize_stoich else 0)
 
         def objective(x):
-            """目的関数"""
-            # パラメータ展開
+            """Objective function"""
+            # Unpack the parameters
             thicknesses = x[:idx_thickness_end]
 
             if cfg.optimize_widths:
@@ -4806,15 +4806,15 @@ class GenericLayerSolver:
             else:
                 layer_stoichs = None
 
-            # プロファイル構築（組成可変対応）
+            # Build the profile (variable composition supported)
             D = self._build_profile(thicknesses, widths, layer_stoichs)
 
-            # 順問題
+            # Forward problem
             I_pred = np.zeros((len(self.tm.angles), self.n_elements))
             for e in range(self.n_elements):
                 I_pred[:, e] = T_matrices[e] @ D[:, e]
 
-            # 正規化
+            # Normalize
             I_pred_norm = I_pred / np.maximum(I_pred.sum(axis=1, keepdims=True), 1e-10)
 
             # Chi²
@@ -4822,7 +4822,7 @@ class GenericLayerSolver:
 
             return chi2
 
-        # 最適化
+        # Optimization
         result = minimize(
             objective,
             x0,
@@ -4834,7 +4834,7 @@ class GenericLayerSolver:
             },
         )
 
-        # 結果の展開
+        # Unpack the result
         thicknesses_opt = result.x[:idx_thickness_end]
 
         if cfg.optimize_widths:
@@ -4848,31 +4848,31 @@ class GenericLayerSolver:
         else:
             layer_stoichs_opt = [dict(layer.stoichiometry) for layer in cfg.layers]
 
-        # 最終プロファイル
+        # Final profile
         D_opt = self._build_profile(thicknesses_opt, widths_opt, layer_stoichs_opt)
 
-        # 最終予測
+        # Final prediction
         I_opt = np.zeros((len(self.tm.angles), self.n_elements))
         for e in range(self.n_elements):
             I_opt[:, e] = T_matrices[e] @ D_opt[:, e]
 
         elapsed = time.time() - start_time
 
-        # 仮定の辞書を構築
+        # Build the assumptions dict
         assumptions = self._build_assumptions_dict()
 
         if verbose:
-            print(f"GenericLayerSolver 結果:")
-            print(f"  収束: {result.success}")
-            print(f"  膜厚: {thicknesses_opt}")
-            print(f"  界面幅: {widths_opt}")
+            print(f"GenericLayerSolver result:")
+            print(f"  converged: {result.success}")
+            print(f"  thicknesses: {thicknesses_opt}")
+            print(f"  interface widths: {widths_opt}")
             if optimize_stoich:
-                print(f"  組成比:")
+                print(f"  stoichiometric ratios:")
                 for i, stoich in enumerate(layer_stoichs_opt):
                     print(f"    Layer {i}: {stoich}")
             print(f"  Chi²: {result.fun:.6f}")
-            print(f"  時間: {elapsed:.3f}秒")
-            print(f"  仮定: {assumptions['fixed_parameters']}")
+            print(f"  time: {elapsed:.3f} s")
+            print(f"  assumptions: {assumptions['fixed_parameters']}")
 
         return GenericLayerResult(
             D_opt=D_opt,

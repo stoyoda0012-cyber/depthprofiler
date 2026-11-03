@@ -28,7 +28,7 @@ verbatim in ``sia_figure_data/scripts/`` (``fig4_hax26_equiv_exposure.py``,
 ``figS9_seed_distribution.py``, ``figS10_seed_ordering.py``) and, for the JVST
 metric table, from the authors' analysis script that produced the ``metrics``
 JSON stored in ``figure_data.h5``. Where the deposit does not define a stored
-quantity, the recomputation is labelled *inferred* in the output rather than
+quantity, the recomputation is labeled *inferred* in the output rather than
 presented as the published definition.
 
 The published reference values, and the rule for calling a cell "matched",
@@ -689,7 +689,7 @@ def replay_jvst_metrics(h5_path: Path, *, verify: bool = True) -> dict:
     median over valid finite pixels ×100; ``sigma_thk`` the population
     standard deviation of valid thicknesses). The stored ``depth_rmse`` field
     has no definition in the deposit; two candidate forms are evaluated and
-    the result is labelled *inferred*. A stored field whose recomputation
+    the result is labeled *inferred*. A stored field whose recomputation
     agrees to 1e-6 relative is ``matched``; the ladder entries whose group is
     missing from the file are reported as ``no_arrays``.
     """

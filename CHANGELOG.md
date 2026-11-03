@@ -17,7 +17,7 @@ part of this repository.
 
 ### Added
 
-- **Forward model.** `TransferMatrix` maps a discretised depth profile of
+- **Forward model.** `TransferMatrix` maps a discretized depth profile of
   composition to angle-resolved intensities, from inelastic mean free paths
   (TPP-2M) and the emission geometry. Compound, element binding-energy and
   cross-section tables come from user-supplied files named by `DEPPRO_*`

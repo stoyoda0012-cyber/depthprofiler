@@ -55,7 +55,7 @@ the development machine; it is **not** an independent third-party verification
   `auto_substrate_detection.py` stop with
   `FileNotFoundError: No compound parameter source available. Either install
   toyomacro (pip install 'deppro[fit]', or …@v0.3.1 …), or point
-  DEPPRO_COMPOUND_TABLE_PATH at a CompoundTable.csv` — the intended behaviour.
+  DEPPRO_COMPOUND_TABLE_PATH at a CompoundTable.csv` — the intended behavior.
 - Deposit replay (`python -m deppro.haxpes.deposit_replay`, the local copy of
   the Zenodo v1.0.0 archives): SIA 21/21 of the values pinned at that time
   matched (two more printed values were pinned later the same day and give
@@ -101,7 +101,7 @@ the development machine; it is **not** an independent third-party verification
 - `HaxpesDenoiser` constructs from the installed packages; the ResNet-FCNN
   at the papers' shape has 658,177 parameters; a random-weight checkpoint plus
   `norm_*.json` round-trips through `denoise_spectrum` with the expected
-  normalise → network → de-normalise → resample chain (max |diff| 0.0).
+  normalize → network → de-normalize → resample chain (max |diff| 0.0).
 - `test_haxpes_denoiser_present.py` + `test_haxpes_optional_denoiser.py` in
   this environment: 9 passed, 0 skipped.
 - Note: dnndenoiser v0.1.2 carries the network class the bridge needs, but
@@ -133,7 +133,7 @@ bridge pull request.
 ## Not covered here
 
 - Python 3.11 (the declared minimum): only 3.12 was available.
-- `mlx` extra and the MLX test set; `pyvista`/napari visualisation extras
+- `mlx` extra and the MLX test set; `pyvista`/napari visualization extras
   (not declared in `pyproject.toml`).
 - CI (`.github/workflows/ci.yml` still installs toyomacro from `main`).
 - Independent verification by someone other than the implementer.
