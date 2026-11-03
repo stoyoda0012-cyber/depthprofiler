@@ -80,7 +80,7 @@ class TransformationMatrix:
         Args:
             D: depth profile (n_depth, n_elem)
             lambdabasic: basic IMFP (n_elem, n_elem) or (1, n_elem, n_elem)
-                                      lambdabasic[i, j] = IMFP of a photoelectron of element i travelling through compound j
+                                      lambdabasic[i, j] = IMFP of a photoelectron of element i traveling through compound j
             gammaeff: effective attenuation coefficient (default: 0.8)
 
         Returns:
@@ -507,7 +507,7 @@ class DepthProfileInitializer:
         n = self.n_elem
         kinetic_energies = self.photon_energy - self.binding_energies
 
-        # lambdabasic[i, j] = IMFP of a photoelectron of element i travelling through compound j
+        # lambdabasic[i, j] = IMFP of a photoelectron of element i traveling through compound j
         self.lambdabasic = np.zeros((n, n), dtype=np.float32)
 
         for i in range(n):
