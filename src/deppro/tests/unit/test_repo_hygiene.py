@@ -304,7 +304,8 @@ def test_no_test_files_inside_shipped_packages():
 #   * a baseline entry must still exist and still contain Japanese, so the
 #     list cannot go stale and silently stop protecting a translated file.
 #
-# Test files are not shipped and are not in scope.
+# Test files are not shipped and are not in scope, and docs/ja/ (Japanese
+# translations of the English originals) is excluded by design.
 
 _ENGLISH_ONLY_BASELINE = Path(__file__).with_name("english_only_baseline.txt")
 _JAPANESE = __import__("re").compile(r"[぀-ヿ一-鿿]")
@@ -323,9 +324,14 @@ def _iter_public_files():
         if p.exists():
             yield name, p
     for p in sorted((root / "docs").rglob("*.md")):
-        if _SKIP_PARTS & set(p.relative_to(root).parts):
+        rel = p.relative_to(root)
+        if _SKIP_PARTS & set(rel.parts):
             continue
-        yield str(p.relative_to(root)), p
+        if rel.parts[:2] == ("docs", "ja"):
+            # docs/ja/ is the designated home of Japanese translations of the
+            # English originals; it is public but Japanese by design.
+            continue
+        yield str(rel), p
 
 
 def _japanese_lines(path: Path) -> int:
