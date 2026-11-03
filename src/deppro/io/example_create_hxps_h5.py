@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-HXPS (8keV) 多層膜サンプルのH5ファイルをゼロから生成する例
+Example that builds from scratch an H5 file for an HXPS (8 keV) multilayer sample
 
-MATLAB DepthProfiler が書く 6 元素 H5 と同様の構造を持つH5ファイルを生成します。
-- 6元素: Si(基板), SiO2, TiO2, Al2O3, C(汚染), O(酸化物)
-- 8keV HXPS測定を想定
-- 4層構造: C表面汚染 / Al2O3 / TiO2 / Si基板
+Produces an H5 file with the same structure as the 6-element H5 written by the MATLAB DepthProfiler.
+- 6 elements: Si (substrate), SiO2, TiO2, Al2O3, C (contamination), O (oxide)
+- assumes an 8 keV HXPS measurement
+- 4-layer structure: C surface contamination / Al2O3 / TiO2 / Si substrate
 
-新しい initializer モジュールを使用して、MATLABのSetボタンと
-同等の初期化を行います。
+Uses the new initializer module to perform the same initialization
+as MATLAB's Set button.
 """
 
 import numpy as np
@@ -22,52 +22,52 @@ from deppro.io.initializer import DepthProfileInitializer, create_initialized_h5
 
 def create_multilayer_profile(depth: np.ndarray) -> np.ndarray:
     """
-    4層構造の深さプロファイルを生成
+    Build the depth profile of the 4-layer structure
 
-    構造（上から）:
-    - C汚染層: 0-20Å
-    - Al2O3層: 20-80Å
-    - TiO2層: 80-160Å
-    - Si基板: 160Å以深
+    Structure (from the top):
+    - C contamination layer: 0-20 Å
+    - Al2O3 layer: 20-80 Å
+    - TiO2 layer: 80-160 Å
+    - Si substrate: below 160 Å
 
-    元素: [Si(0), Si(+4), Ti(+4), Al(+3), C(0), O(-2)]
+    Elements: [Si(0), Si(+4), Ti(+4), Al(+3), C(0), O(-2)]
 
     Returns:
-        profile: (n_depth, 6) 深さプロファイル
+        profile: (n_depth, 6) depth profile
     """
     from scipy.special import erf
 
     n_depth = len(depth)
     profile = np.zeros((n_depth, 6))
 
-    # FWHM→σ変換係数
+    # FWHM → σ conversion factor
     fwhm_to_sigma = 1.0 / (2.0 * np.sqrt(np.log(2)))
 
-    # 界面位置と急峻度（FWHM）
-    z1 = 20.0   # C/Al2O3 界面
-    z2 = 80.0   # Al2O3/TiO2 界面
-    z3 = 160.0  # TiO2/Si 界面
-    w = 20.0    # 界面幅（FWHM）
+    # Interface positions and abruptness (FWHM)
+    z1 = 20.0   # C/Al2O3 interface
+    z2 = 80.0   # Al2O3/TiO2 interface
+    z3 = 160.0  # TiO2/Si interface
+    w = 20.0    # interface width (FWHM)
     sigma = w * fwhm_to_sigma
 
     for i, z in enumerate(depth):
-        # 各層の存在関数（シグモイド遷移）
+        # Presence function of each layer (sigmoid transitions)
         f_C = 0.5 * (1 - erf((z - z1) / sigma))
         f_Al2O3 = 0.5 * (1 + erf((z - z1) / sigma)) * 0.5 * (1 - erf((z - z2) / sigma))
         f_TiO2 = 0.5 * (1 + erf((z - z2) / sigma)) * 0.5 * (1 - erf((z - z3) / sigma))
         f_Si = 0.5 * (1 + erf((z - z3) / sigma))
 
-        # 元素濃度
+        # Element concentrations
         # [Si(0), Si(+4), Ti(+4), Al(+3), C(0), O(-2)]
-        profile[i, 0] = f_Si * 1.0                          # Si(0): 基板
-        profile[i, 1] = 0.0                                  # Si(+4): なし
-        profile[i, 2] = f_TiO2 * 0.33                        # Ti(+4): TiO2層
-        profile[i, 3] = f_Al2O3 * 0.40                       # Al(+3): Al2O3層
-        profile[i, 4] = f_C * 0.90                           # C(0): 表面汚染のみ
-        profile[i, 5] = (f_TiO2 * 0.67 + f_Al2O3 * 0.60 +    # O(-2): 酸化物
+        profile[i, 0] = f_Si * 1.0                          # Si(0): substrate
+        profile[i, 1] = 0.0                                  # Si(+4): none
+        profile[i, 2] = f_TiO2 * 0.33                        # Ti(+4): TiO2 layer
+        profile[i, 3] = f_Al2O3 * 0.40                       # Al(+3): Al2O3 layer
+        profile[i, 4] = f_C * 0.90                           # C(0): surface contamination only
+        profile[i, 5] = (f_TiO2 * 0.67 + f_Al2O3 * 0.60 +    # O(-2): oxides
                         f_C * 0.08)
 
-    # 正規化
+    # Normalize
     total = profile.sum(axis=1, keepdims=True)
     profile = np.where(total > 0, profile / total, profile)
 
@@ -76,73 +76,73 @@ def create_multilayer_profile(depth: np.ndarray) -> np.ndarray:
 
 def main():
     print("=" * 70)
-    print("HXPS多層膜H5ファイル生成サンプル")
+    print("Sample: generating an H5 file for an HXPS multilayer")
     print("=" * 70)
 
     # =========================================================================
-    # 1. 基本パラメータ設定
+    # 1. Basic parameters
     # =========================================================================
     photon_energy = 8000.0  # 8keV HXPS
-    total_depth = 600.0     # 解析深さ [Å]
-    n_depth = 20            # 深さ分割数
-    slice_size = 20.0       # 膜分割サイズ [Å]
+    total_depth = 600.0     # analysis depth [Å]
+    n_depth = 20            # number of depth points
+    slice_size = 20.0       # film slice size [Å]
 
-    # 深さ軸
+    # Depth axis
     depth = np.linspace(0, total_depth, n_depth)
     step_size = depth[1] - depth[0]
 
-    # 測定角度（14点等間隔 0-60°）
+    # Measurement angles (14 points, evenly spaced 0-60°)
     thetaobs = np.linspace(0, 60, 14)
 
-    # 最適化/表示用角度（標準16点）
+    # Optimization / display angles (the standard 16 points)
     thetaopt = np.array([-10, 0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90],
                        dtype=np.float32)
 
     # =========================================================================
-    # 2. 元素設定
+    # 2. Element settings
     # =========================================================================
-    # 元素記号（化学種ごとに区別）
+    # Element symbols (one per chemical species)
     elements = ['Si', 'Si', 'Ti', 'Al', 'C', 'O']
 
-    # オービタル（HXPS 8keVでは1sを使用）
+    # Orbitals (1s for 8 keV HXPS)
     orbitals = ['1s', '1s', '1s', '1s', '1s', '1s']
 
-    # 化合物名（物性値の参照用）
+    # Compound names (for looking up material properties)
     compounds = ['Si', 'SiO2', 'TiO2', 'Al2O3', 'C', 'Oxide']
 
-    # 電荷状態
+    # Charge states
     charges = [0.0, 4.0, 4.0, 3.0, 0.0, -2.0]
 
-    # 基板・自由・リンク設定（1-based index）
-    subst = [1]           # Si(0) が基板
-    free = [2, 3, 4, 5]   # Si(+4), Ti, Al, C が自由
-    linked = [6]          # O がリンク（酸化物として他元素に従属）
+    # Substrate / free / linked settings (1-based index)
+    subst = [1]           # Si(0) is the substrate
+    free = [2, 3, 4, 5]   # Si(+4), Ti, Al, C are free
+    linked = [6]          # O is linked (follows the other elements as oxides)
 
-    # プロパティ文字列
+    # Property strings
     prpties = ['Subst.', 'Free', 'Free', 'Free', 'Free', 'Linked']
 
     # =========================================================================
-    # 3. 深さプロファイル生成
+    # 3. Depth profile
     # =========================================================================
-    print("\n深さプロファイル生成中...")
+    print("\nBuilding the depth profile...")
     profile_true = create_multilayer_profile(depth)
 
-    # 初期推定 = 真のプロファイルのコピー（MATLABのSetで再計算される）
+    # Initial estimate = a copy of the true profile (recomputed by MATLAB's Set)
     profile_init = profile_true.copy()
 
-    # 結果（少しノイズを加えた真値）
+    # Result (the truth with a little noise)
     noise_level = 0.02
     profile_result = profile_true + np.random.normal(0, noise_level, profile_true.shape)
     profile_result = np.clip(profile_result, 0, 1)
     profile_result = profile_result / profile_result.sum(axis=1, keepdims=True)
 
-    print(f"  深さ点数: {n_depth}")
-    print(f"  元素数: {len(elements)}")
+    print(f"  depth points: {n_depth}")
+    print(f"  elements: {len(elements)}")
 
     # =========================================================================
-    # 4. 初期化計算（MATLABのSetボタンと同等）
+    # 4. Initialization (equivalent of MATLAB's Set button)
     # =========================================================================
-    print("\n初期化計算中（MATLAB Set相当）...")
+    print("\nInitializing (equivalent of MATLAB Set)...")
 
     initializer = DepthProfileInitializer(
         depth=depth,
@@ -154,25 +154,25 @@ def main():
         charges=charges,
     )
 
-    # 真のプロファイルから転送行列・角度プロファイルを計算
+    # Transfer matrix and angle profiles from the true profile
     init_results = initializer.initialize_from_profile(profile_true)
 
-    print(f"  lambdabasic (対角): {np.diag(init_results['lambdabasic'])}")
+    print(f"  lambdabasic (diagonal): {np.diag(init_results['lambdabasic'])}")
     print(f"  Xobs[0] (angle=0): {init_results['Xobs'][0]}")
 
     # =========================================================================
-    # 5. H5Writer でファイル生成
+    # 5. Write the file with H5Writer
     # =========================================================================
     from deppro.paths import ensure_outputs_dir
     output_dir = ensure_outputs_dir()
     output_path = output_dir / 'example_hxps_multilayer.h5'
 
-    print(f"\nH5ファイル生成中...")
-    print(f"  出力: {output_path}")
+    print(f"\nWriting the H5 file...")
+    print(f"  output: {output_path}")
 
     writer = H5Writer(output_path)
 
-    # 基本パラメータ設定
+    # Basic parameters
     writer.set_basic_params(
         depth=depth,
         angles=thetaobs,
@@ -190,10 +190,10 @@ def main():
         charges=charges,
     )
 
-    # 初期化結果をWriterに適用（転送行列、IMFP等）
+    # Apply the initialization results to the writer (transfer matrices, IMFP, ...)
     initializer.apply_to_writer(writer)
 
-    # プロファイル設定
+    # Profiles
     writer.set_profiles(
         Drlt=profile_result,
         Dtrn=profile_true,
@@ -202,37 +202,37 @@ def main():
         Xopt=init_results['Xopt'],
     )
 
-    # ★ set_profiles後に初期化結果を再適用（上書き防止）
+    # ★ Re-apply the initialization results after set_profiles (so they are not overwritten)
     initializer.apply_to_writer(writer)
 
-    # 目的関数（ダミー値）
+    # Objective function (dummy values)
     writer.set_objectives(
         Qrlt=np.array([[1000.0, 0.0, 1000.0]]),
     )
 
-    # ezdeprof の追加設定
+    # Additional ezdeprof settings
     ez = writer._ezdeprof
 
-    # 膜厚パラメータ（4層構造）
-    thck_init = 160.0  # Si基板との界面位置
-    abrp_init = 20.0   # 界面急峻度
+    # Thickness parameters (4-layer structure)
+    thck_init = 160.0  # position of the interface with the Si substrate
+    abrp_init = 20.0   # interface abruptness
     ez['thckini'] = np.array([thck_init, 0.0, total_depth], dtype=np.float32)
     ez['abrpini'] = np.array([abrp_init, abrp_init, abrp_init], dtype=np.float32)
     ez['thckmod'] = ez['thckini'].copy()
     ez['abrpmod'] = ez['abrpini'].copy()
 
-    # FeatureVector_Source（freeconst=4要素）
+    # FeatureVector_Source (freeconst = 4 elements)
     # [thck, abrp, pos1, width1, height1, pos2, width2, height2, ...]
     n_freeconst = 4
     fv = np.zeros(2 + 3 * n_freeconst, dtype=np.float32)
     fv[0] = thck_init
     fv[1] = abrp_init
-    # 各free元素のパラメータ（参考値）
+    # Parameters of each free element (reference values)
     free_params = [
-        (thck_init, 60.0, 33.3),   # Si(+4): 界面付近
-        (120.0, 80.0, 33.3),       # Ti: TiO2層
-        (50.0, 80.0, 33.3),        # Al: Al2O3層
-        (10.0, 40.0, 80.0),        # C: 表面汚染
+        (thck_init, 60.0, 33.3),   # Si(+4): near the interface
+        (120.0, 80.0, 33.3),       # Ti: TiO2 layer
+        (50.0, 80.0, 33.3),        # Al: Al2O3 layer
+        (10.0, 40.0, 80.0),        # C: surface contamination
     ]
     for i, (pos, width, height) in enumerate(free_params):
         fv[2 + 3*i + 0] = pos
@@ -242,58 +242,58 @@ def main():
     ez['FeatureVector_Set'] = fv.copy()
     ez['FeatureVector_Calc'] = fv.copy()
 
-    # SupportVector（基板+リンク）
+    # SupportVector (substrate + linked)
     # [pos_Si, width_Si, height_Si, pos_O, width_O, height_O]
     sv = np.array([
-        total_depth / 2, total_depth / 2, 100.0,  # Si基板
-        thck_init / 2, thck_init, 60.0,           # O（酸化物）
+        total_depth / 2, total_depth / 2, 100.0,  # Si substrate
+        thck_init / 2, thck_init, 60.0,           # O (oxides)
     ], dtype=np.float32)
     ez['SupportVector_Set'] = sv
     ez['SupportVector_Calc'] = sv.copy()
 
-    # 書き込み
+    # Write
     writer.write()
 
     # =========================================================================
-    # 6. 検証
+    # 6. Verification
     # =========================================================================
     print("\n" + "=" * 70)
-    print("検証")
+    print("Verification")
     print("=" * 70)
 
     import h5py
     with h5py.File(output_path, 'r') as f:
-        print("\n【ルートデータセット】")
+        print("\n[Root datasets]")
         for key in ['Drlt', 'Dtrn', 'Dstk', 'Xrlt', 'Xstk', 'Qrlt']:
             if key in f:
                 print(f"  {key}: {f[key].shape}")
 
-        print("\n【ezdeprof 主要フィールド】")
+        print("\n[Main ezdeprof fields]")
         ez = f['ezdeprof']
         for key in ['depth', 'thetaobs', 'elementsymbol', 'Dini', 'lambdabasic']:
             if key in ez:
                 print(f"  {key}: {ez[key].shape}")
 
-        print("\n【物性パラメータ】")
+        print("\n[Material parameters]")
         print(f"  photon: {ez['photon'][()][0]} eV")
         print(f"  bindingenergy: {ez['bindingenergy'][:].flatten()}")
         print(f"  FeatureVector_Source: {ez['FeatureVector_Source'][:].flatten()}")
 
     print("\n" + "=" * 70)
-    print("完了")
+    print("Done")
     print("=" * 70)
     print(f"""
-MATLABでの読み込み:
+Reading in MATLAB:
   cd '{output_dir}'
 
-  % GUIで読み込み
+  % read in the GUI
   DepthProfiler
 
-  % File > Read Result で example_hxps_multilayer.h5 を選択
-  % Distribution function で 'Gaussian' を選択
-  % Setボタンを押して初期プロファイルを確認
+  % File > Read Result, choose example_hxps_multilayer.h5
+  % Distribution function: choose 'Gaussian'
+  % press Set and check the initial profile
 
-  % または直接データ読み込み
+  % or read the data directly
   store = deppro.io.DataStore('example_hxps_multilayer.h5');
   ez = store.getEzdeprof('full', true);
   D = store.getDrlt(1);
