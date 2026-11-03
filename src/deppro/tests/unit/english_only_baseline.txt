@@ -3,7 +3,6 @@
 # same commit. Never add a line: new code and documents are written in English.
 # (Checked by src/deppro/tests/unit/test_repo_hygiene.py; the count is informative.)
 
-README.md    # 71 lines
 pyproject.toml    # 6 lines
 src/deppro/__init__.py    # 40 lines
 src/deppro/_compat.py    # 11 lines
