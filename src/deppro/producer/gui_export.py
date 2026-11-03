@@ -1,33 +1,33 @@
-"""MATLAB GUI が期待する「解析前の状態」を作る export profile。
+"""The export profile that builds the "pre-analysis state" the MATLAB GUI expects.
 
-軽量 profile（解析側 reader 向け）は `dataset.py` のまま。ここはそれに **GUI が
-`ReadResult_Callback` で参照する `/ezdeprof` フィールド**と、結果欄の初期化状態を足す。
+The light profile (for the analysis-side reader) stays as in `dataset.py`. This adds **the
+`/ezdeprof` fields the GUI refers to in `ReadResult_Callback`** and the initialized result fields.
 
-## 未計算の表し方は**フィールドごとに違う**
+## How "not yet computed" is represented **differs per field**
 
-MATLAB の「生成済み・解析未実行」の小標本を読んで、初期化規則を確かめた
-（他データの解析結果はコピーしていない）:
+The initialization rules were checked by reading small MATLAB samples that were generated but
+not analyzed (no analysis results of other data were copied):
 
-| フィールド | 解析前の値 | 根拠 |
+| Field | Pre-analysis value | Evidence |
 |---|---|---|
-| `Conc_Calc` / `FeatureVector_Calc` / `Sprs_Calc` / `SupportVector_Calc` | 対応する `_Set` の**コピー** | 参照で `_Calc == _Set` がすべて True |
-| `Dini` / `Dmod` / `Dopt` | 初期推定プロファイル（3 つとも同じ） | 参照で 3 つがビット一致、かつ GT (`Dobs`) とは max 0.90 違う |
-| `Drlt` / `Dtrn` | `Dini` を全 sample へ複製 | 参照で「相異なる行 = 1」「全行が Dini の複製」を確認 |
-| `Qini` | 計算値 | 参照で有限 |
-| `Qopt` | **NaN** | 参照が NaN。**この 1 つだけ**が NaN |
-| `currentloop` / `currentstack` | 1 | 参照 |
-| `iterationtotal` | sample 数 | 参照 |
-| `calculationinitialized` | `[1, 1, sample 数]` | 参照 |
-| `verificationstatus` | 0 | 参照 |
+| `Conc_Calc` / `FeatureVector_Calc` / `Sprs_Calc` / `SupportVector_Calc` | a **copy** of the corresponding `_Set` | `_Calc == _Set` is True everywhere in the reference |
+| `Dini` / `Dmod` / `Dopt` | the initial-estimate profile (all three the same) | the three are bit-identical in the reference, and differ from the GT (`Dobs`) by up to 0.90 |
+| `Drlt` / `Dtrn` | `Dini` replicated to every sample | the reference shows "distinct rows = 1" and "every row is a copy of Dini" |
+| `Qini` | computed | finite in the reference |
+| `Qopt` | **NaN** | NaN in the reference. **This one alone** is NaN |
+| `currentloop` / `currentstack` | 1 | reference |
+| `iterationtotal` | number of samples | reference |
+| `calculationinitialized` | `[1, 1, number of samples]` | reference |
+| `verificationstatus` | 0 | reference |
 
-**`Qopt` が NaN だからといって他の結果欄も NaN でよい、とはしない。** 実際 `_Calc` 系は
-NaN ではなくコピーだった。
+**`Qopt` being NaN does not mean the other result fields may be NaN too.** The `_Calc` family
+was in fact a copy, not NaN.
 
-## 初期推定プロファイルは cfg から作る。GT からは作らない
+## The initial-estimate profile is built from cfg, not from the GT
 
-`Dini` は `thckini` / `abrpini` / `subsini` と Homogeneous 分岐（電荷中性を満たす一様組成）
-だけで決まる。参照と照合して基板列が erf に一致することを確かめてある。
-**生成 GT から導出して解析の初期値へ渡していない。**
+`Dini` is determined only by `thckini` / `abrpini` / `subsini` and the Homogeneous branch (a uniform
+composition satisfying charge neutrality). Checked against the reference that the substrate column matches the erf.
+**It is not derived from the generated GT and handed to the analysis as an initial value.**
 """
 
 from __future__ import annotations
@@ -40,13 +40,13 @@ import numpy as np
 from scipy.special import erf
 
 
-#: 解析前の状態の識別子。中身を変えたらここも上げる。
+#: Identifier of the pre-analysis state. Bump it when the contents change.
 PRE_ANALYSIS_STATE = "matlab-Set-initialised/1"
 
-#: InitializeInitialGuess_Parallel の反復回数。生成側の 30 回とは別。
+#: Iteration count of InitializeInitialGuess_Parallel. Different from the producer's 30.
 INITIAL_GUESS_ITERATIONS = 1000
 
-#: GUI の既定角度（非一様）。cfg で上書きできる。
+#: The GUI's default angles (non-uniform). Can be overridden in cfg.
 THETA_OPT_DEFAULT = [-10.0, 0.0, 10.0, 20.0, 30.0, 40.0, 45.0, 50.0,
                      55.0, 60.0, 65.0, 70.0, 75.0, 80.0, 85.0, 90.0]
 
@@ -60,12 +60,12 @@ ORBITAL_NUMBER = {"1s":1,"2s":2,"2p":2,"3s":3,"3p":3,"3d":3,"4s":4,"4p":4,"4d":4
 
 @dataclass(frozen=True)
 class GuiSettings:
-    """GUI が読む設定。**cfg で明示する**。未計算のものを計算済みに見せない。"""
+    """Settings the GUI reads. **Explicit in cfg.** Nothing uncomputed is shown as computed."""
 
     theta_opt: Sequence[float] = tuple(THETA_OPT_DEFAULT)
     emission_angle: Optional[float] = None                # None -> max(theta_obs)
     delta_photon: float = 1000.0
-    # [value, min, max]。使うのは第 1 要素だけだが、GUI が 3 要素で保持するので合わせる。
+    # [value, min, max]. Only the first entry is used, but the GUI keeps three, so match it.
     thck_ini: Sequence[float] = (210.0, 0.0, 600.0)
     abrp_ini: Sequence[float] = (20.0, 20.0, 20.0)
     subs_ini: Sequence[float] = (1.0, 1.0, 1.0)
@@ -73,7 +73,7 @@ class GuiSettings:
     abrp_mod: Sequence[float] = (20.0, 20.0, 20.0)
     subs_mod: Sequence[float] = (1.0, 1.0, 1.0)
     colours: Optional[Sequence[Sequence[float]]] = None   # (ne, 3) RGB。None -> 0.9*lines(ne)
-    # --- 解析設定（生成側の既定であって、解析を縛るものではない） ---
+    # --- Analysis settings (producer-side defaults; they do not bind the analysis) ---
     loop: int = 10
     kfold: int = 2
     holdout: int = 1
@@ -105,18 +105,18 @@ def _fwhm_sigma(v: float) -> float:
 
 def initial_guess_profile(depth, charges, subst_index, anti_index, thck_ini, abrp_ini,
                           subs_ini=None, const_index=(), linked_index=(), d_const=None):
-    """`Dini` / `Dmod` を **cfg だけから** 作る。
+    """Build `Dini` / `Dmod` **from cfg alone**.
 
-    `+deppro/+core/InitializeInitialGuess_Parallel.m` の写し。生成側の
-    `CalculateDistribution` とは**別の初期化規則**である点に注意:
+    A copy of `+deppro/+core/InitializeInitialGuess_Parallel.m`. Note that this is **a different
+    initialization rule** from the producer's `CalculateDistribution`:
 
-    * 基板の取り分は `1/len(subst)`（SupportVector からではない）
-    * 膜は電荷中性を満たす一様組成（Dcatani）
-    * 電荷ループは **1000 回**、係数 `(1 + 1/k)`
-      （生成側は 30 回・`1 + 100*exp(-k/2)`。混同すると Σ_e D が 1.047 まで膨らむ）
+    * the substrate share is `1/len(subst)` (not from the SupportVector)
+    * the film is a uniform composition satisfying charge neutrality (Dcatani)
+    * the charge loop runs **1000 times** with factor `(1 + 1/k)`
+        (the producer uses 30 iterations and `1 + 100*exp(-k/2)`; confusing them inflates Σ_e D to 1.047)
 
-    生成した GT は使わない。`d_const` は const 成分がある場合の固定プロファイルで、
-    これも解析側の入力であって GT ではない。
+    The generated GT is not used. `d_const` is the fixed profile for const components, and is
+    likewise an input to the analysis, not the GT.
     """
     z = np.asarray(depth, dtype=float)
     q = np.asarray(charges, dtype=float)
@@ -172,7 +172,7 @@ def initial_guess_profile(depth, charges, subst_index, anti_index, thck_ini, abr
     for k, e in enumerate(anti):
         d[:, e] = (fix_lock[:, 0] + cat * rest) if qa[k] >= 0 else (fix_lock[:, 1] + ani * rest)
 
-    # **1000 回・(1+1/k)**。生成側の 30 回ループとは別。
+    # **1000 iterations, (1+1/k)**. Different from the producer's 30-iteration loop.
     pos_anti = [anti[i] for i in np.flatnonzero(pos)]
     neg_anti = [anti[i] for i in np.flatnonzero(neg)]
     for k in range(1, INITIAL_GUESS_ITERATIONS + 1):
@@ -187,7 +187,7 @@ def initial_guess_profile(depth, charges, subst_index, anti_index, thck_ini, abr
 
 
 def peak_parameters(d: np.ndarray, depth: np.ndarray):
-    """p (重心) / w / h。`SimulationUpdater.computeSimulationObservables` と同じ式。"""
+    """p (centroid) / w / h. Same formula as `SimulationUpdater.computeSimulationObservables`."""
     z = np.asarray(depth, dtype=float)
     with np.errstate(divide="ignore", invalid="ignore"):
         p = (d * z[:, None]).sum(axis=0) / d.sum(axis=0)
@@ -197,7 +197,7 @@ def peak_parameters(d: np.ndarray, depth: np.ndarray):
 
 
 def default_colours(ne: int) -> np.ndarray:
-    """(3, ne) の決定的な配色。GUI 表示用で、数値の意味は持たない。"""
+    """Deterministic colors, (3, ne). For the GUI display; no numerical meaning."""
     idx = np.arange(ne, dtype=float)
     return np.stack([(0.37 * idx + 0.11) % 1.0,
                      (0.61 * idx + 0.29) % 1.0,
@@ -205,27 +205,27 @@ def default_colours(ne: int) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# 版の固定（2026-09-08）
+# Version pinning (2026-09-08)
 #
-# ここから下の規則は**版付きで凍結する**。数値規則（反復回数・boost 係数・
-# 微小値の閾値）を変えるときは、値ではなく版 ID を上げ、差を測って記録する。
+# The rules below are **frozen with a version**. When a numerical rule (iteration count, boost
+# factor, small-value threshold) changes, bump the version ID rather than the value, and measure and record the difference.
 # ---------------------------------------------------------------------------
 
-#: 初期推定プロファイルの構成規則。`initial_guess_profile()` の中身と 1:1。
-#: 1000 回ループ / boost = 1 + 1/k / 基板の取り分 = 1/len(subst) / 膜は Dcatani。
+#: Construction rule of the initial-estimate profile. 1:1 with the body of `initial_guess_profile()`.
+#: 1000-iteration loop / boost = 1 + 1/k / substrate share = 1/len(subst) / film is Dcatani.
 INITIAL_GUESS_RULE = "InitializeInitialGuess_Parallel/port/1"
 
-#: `Sprs_Set` の「ほぼゼロ」判定。MATLAB: `length(find(Dini(:,free)<1e-5))`。
+#: The "nearly zero" test of `Sprs_Set`. MATLAB: `length(find(Dini(:,free)<1e-5))`.
 SPARSITY_THRESHOLD = 1e-5
 
-#: 目的関数を組むときの下限クリップ。MATLAB Set: `minVal = 1e-6`。
+#: Lower clip when building the objective. MATLAB Set: `minVal = 1e-6`.
 OBJECTIVE_MIN_VAL = 1e-6
 
-#: root の結果配列の chunk 行数。小さいほど chunk cache の設定に鈍感になる。
-#: 大きな chunk は既定 cache を素通りして速く見えるだけで、cache を広げると大きく落ちる。
+#: Chunk row count of the root result arrays. Smaller is less sensitive to the chunk-cache settings.
+#: A large chunk only looks fast because it bypasses the default cache; enlarging the cache slows it down a lot.
 ROOT_CHUNK_ROWS = 128
 
-#: MATLAB `0.9*lines(7)` の 7 色（既定の ColorOrder）。8 色目以降は巡回する。
+#: The 7 colors of MATLAB `0.9*lines(7)` (default ColorOrder). From the 8th on they cycle.
 _LINES7 = np.array([
     [0.0000, 0.4470, 0.7410],
     [0.8500, 0.3250, 0.0980],
@@ -238,16 +238,16 @@ _LINES7 = np.array([
 
 
 def matlab_lines_colours(ne: int) -> np.ndarray:
-    """`0.9*lines(ne)` を (ne, 3) で返す。GUI の配色検出が Lines を選ぶ値。
+    """Return `0.9*lines(ne)` as (ne, 3). The value for which the GUI's color detection picks Lines.
 
-    参照 h5 の `Col` と一致することを実測で確かめてある（Checkered-7）。
-    数値の意味は持たない表示専用の値。
+    Checked by measurement to match `Col` of the reference h5 (Checkered-7).
+    Display-only values with no numerical meaning.
     """
     return 0.9 * _LINES7[np.arange(int(ne)) % 7]
 
 
 def string_charges(charges: Sequence[float]) -> List[str]:
-    """`DeterminingStringChargeAndElement` の stringcharge。整数電荷のみ対応。"""
+    """stringcharge of `DeterminingStringChargeAndElement`. Integer charges only."""
     out = []
     for q in charges:
         q = float(q)
@@ -261,22 +261,22 @@ def string_charges(charges: Sequence[float]) -> List[str]:
 
 
 def element_labels(symbols: Sequence[str], charges: Sequence[float]) -> List[str]:
-    """`element` = 元素記号 + "(" + stringcharge + ")"。"""
+    """`element` = element symbol + "(" + stringcharge + ")"."""
     return [f"{s}({c})" for s, c in zip(symbols, string_charges(charges))]
 
 
 def lambda_from_profile(d: np.ndarray, lambda_basic: np.ndarray, gamma_eff: float) -> np.ndarray:
-    """`lambda(z,i) = gamma_eff / sum_a D(z,a)/L(a,i)`。`L` は `L[a, i]`（MATLAB の向き）。"""
+    """`lambda(z,i) = gamma_eff / sum_a D(z,a)/L(a,i)`. `L` is `L[a, i]` (MATLAB orientation)."""
     d = np.asarray(d, dtype=float)                      # (nz, ne_a)
     inv = 1.0 / np.asarray(lambda_basic, dtype=float)   # (a, i)
     return float(gamma_eff) / (d @ inv)                 # (nz, ne_i)
 
 
-#: T の作り方の版。**式を変えたら値ではなく版 ID を上げる。**
-#: 90 度列の扱いが式に依存するので、式そのものを契約にする（下の docstring）。
+#: Version of how T is built. **When the formula changes, bump the version ID, not the value.**
+#: The handling of the 90-degree column depends on the formula, so the formula itself is the contract (docstring below).
 TRANSFER_MATRIX_RULE = "cumprod-over-exp/matlab-TransformationMatrix/1"
 
-#: 90 度（cos = 0）の列の扱い。`cumprod(e)/e` は 0/0 で NaN になる。
+#: Handling of the 90-degree column (cos = 0). `cumprod(e)/e` is 0/0 and gives NaN.
 NINETY_DEGREE_POLICY = ("NaN. theta=90 deg gives cos=0, t1=-inf, exp(t1)=0 and cumprod/exp = 0/0. "
                         "The equivalent-looking exp(cumsum(t1)-t1) does NOT produce NaN, because "
                         "numpy's cos(pi/2) is 6.1e-17 rather than 0 -- so the NaN pattern is a "
@@ -289,9 +289,9 @@ NINETY_DEGREE_POLICY = ("NaN. theta=90 deg gives cos=0, t1=-inf, exp(t1)=0 and c
 def transfer_matrix(lam: np.ndarray, angles_deg: np.ndarray, step_size: float) -> np.ndarray:
     """`T(th,z,i) = cumprod_z(exp t1)/exp t1`, `t1 = -dz/(lambda cos th)`。(nth, nz, ne)。
 
-    式は `TRANSFER_MATRIX_RULE` で版付け。**90 度列が NaN になるかどうかは式に依存する**
-    ので、`NINETY_DEGREE_POLICY` を読むこと。`cumprod(e)/e`（この実装、MATLAB と同形）は
-    NaN を出し、`exp(cumsum(t1)-t1)` は出さない。**握りつぶさない。**
+    The formula is versioned by `TRANSFER_MATRIX_RULE`. **Whether the 90-degree column becomes NaN depends on the formula**,
+    so read `NINETY_DEGREE_POLICY`. `cumprod(e)/e` (this implementation, same form as MATLAB) gives
+    NaN; `exp(cumsum(t1)-t1)` does not. **It is not swallowed.**
     """
     lam = np.asarray(lam, dtype=float)
     th = np.deg2rad(np.asarray(angles_deg, dtype=float))
@@ -315,20 +315,20 @@ def angle_profile(d: np.ndarray, trans_mat: np.ndarray) -> np.ndarray:
 
 
 def concentration(d: np.ndarray, anti_index: Sequence[int]) -> np.ndarray:
-    """`Conc = 100*sum(D)/sum(D(:,antisubst),'all')`。基板が 100 を超えるのは正常。"""
+    """`Conc = 100*sum(D)/sum(D(:,antisubst),'all')`. The substrate exceeding 100 is normal."""
     d = np.asarray(d, dtype=float)
     return 100.0 * d.sum(axis=0) / d[:, list(anti_index)].sum()
 
 
 def sparsity(d: np.ndarray, free_index: Sequence[int]) -> np.ndarray:
-    """`Sprs = [count(D(:,free) < 1e-5), nz*nfree]`。閾値は凍結（SPARSITY_THRESHOLD）。"""
+    """`Sprs = [count(D(:,free) < 1e-5), nz*nfree]`. The threshold is frozen (SPARSITY_THRESHOLD)."""
     d = np.asarray(d, dtype=float)
     free = list(free_index)
     return np.array([float((d[:, free] < SPARSITY_THRESHOLD).sum()), float(d.shape[0] * len(free))])
 
 
 def feature_vector_from_profile(d, depth, thck_abrp, freeconst_index) -> np.ndarray:
-    """`FV_Set = [thck abrp p/w/h(freeconst)]`（`SimulationUpdater` と `Set` で同一）。"""
+    """`FV_Set = [thck abrp p/w/h(freeconst)]` (identical in `SimulationUpdater` and `Set`)."""
     p, w, h = peak_parameters(np.asarray(d, float), np.asarray(depth, float))
     out = [float(thck_abrp[0]), float(thck_abrp[1])]
     for e in freeconst_index:
@@ -337,7 +337,7 @@ def feature_vector_from_profile(d, depth, thck_abrp, freeconst_index) -> np.ndar
 
 
 def support_vector_from_profile(d, depth, subst_index, linked_index) -> np.ndarray:
-    """`SV = [p/w/h(subst) p/w/h(linked)]`。`profile.support_vector_from_profile` と同式。"""
+    """`SV = [p/w/h(subst) p/w/h(linked)]`. Same formula as `profile.support_vector_from_profile`."""
     p, w, h = peak_parameters(np.asarray(d, float), np.asarray(depth, float))
     out: List[float] = []
     for e in list(subst_index) + list(linked_index):
@@ -347,7 +347,7 @@ def support_vector_from_profile(d, depth, subst_index, linked_index) -> np.ndarr
 
 def _set_model_profile(*, d_ini, depth, charge, subst, free, const, linked,
                        dep_ind, thck, abrp, subs_h, x_free, min_val):
-    """`ObjectFcn_Set_Parallel` の内側 `CalcDistrib` が組む `Dopt`。stack に依らない。"""
+    """The `Dopt` built by the inner `CalcDistrib` of `ObjectFcn_Set_Parallel`. Independent of the stack."""
     z = np.asarray(depth, dtype=float)
     q = np.asarray(charge, dtype=float)
     if linked:
@@ -375,28 +375,28 @@ def initial_objective_series(*, x_obs_all, d_ini, d_mod, depth, charge, subst, a
                              thck_ini, abrp_ini, subs_ini, thck_mod, abrp_mod, subs_mod,
                              optimization_method_value, degree=1.0, alpha=1.0,
                              min_val=OBJECTIVE_MIN_VAL):
-    """全 stack の `Qini = [0.5*Chi2, -alpha*S, ObjFnc]` を (P, 3) で返す。
+    """Return `Qini = [0.5*Chi2, -alpha*S, ObjFnc]` of every stack as (P, 3).
 
-    `DepthProfiler.m` の Set 分岐と `+deppro/+core/ObjectFcn_Set_Parallel.m` の写し。
-    模擬側 `Xsimu` は **stack に依らない**（初期推定だけから決まる）ので 1 度だけ
-    組み、stack ごとに変わる `Xdata`/`Xreg` だけを回す。
+    A copy of the Set branch of `DepthProfiler.m` and `+deppro/+core/ObjectFcn_Set_Parallel.m`.
+    The simulated `Xsimu` **does not depend on the stack** (it follows from the initial estimate only), so it is
+    built once; only the per-stack `Xdata`/`Xreg` are looped.
 
-    `x0` の末尾は **[thck, abrp, subst 高さ] のスカラー**である（`thckini` などの
-    3 要素ベクトル全体ではない）。これは推測ではなく参照 `Qstk` との照合で決めた:
-    3 要素ベクトルを丸ごと連結する読みでは Q(1) が参照と合わず、スカラーの読みでは
-    全 stack で参照と一致した（float32 の精度の範囲）。
+    The tail of `x0` is **the scalars [thck, abrp, subst height]** (not the whole 3-element
+    vectors such as `thckini`). This is not a guess; it was settled against the reference `Qstk`:
+    concatenating the whole 3-element vectors makes Q(1) disagree with the reference, while the scalar
+    reading agrees for every stack (within float32 precision).
 
-    `optimizationmethodvalue` は 1 (LLS) と 3 (L1) のみ。基板が 2 成分以上のときの
-    `subsini` の割り当ては参照から確かめていないので拒否する。
+    `optimizationmethodvalue` is only 1 (LLS) or 3 (L1). The assignment of `subsini` with two or
+    more substrate components has not been checked against the reference, so it is refused.
     """
     if optimization_method_value not in (1, 3):
         raise NotImplementedError(
-            f"optimizationmethodvalue={optimization_method_value} は未移植（1=LLS と 3=L1 のみ）")
+            f"optimizationmethodvalue={optimization_method_value} is not ported (only 1=LLS and 3=L1)")
     subst = list(subst); antisubst = list(antisubst)
     free = list(free); const = list(const); linked = list(linked)
     if len(subst) != 1:
         raise NotImplementedError(
-            "subst が 2 成分以上のときの subsini -> 基板高さの割り当ては参照未確認")
+            "the subsini -> substrate height assignment with two or more subst components is unverified against the reference")
     ang_ind = np.asarray(ang_ind, dtype=int); dep_ind = np.asarray(dep_ind, dtype=int)
     m = dep_ind.size; nf = len(free)
 
@@ -447,21 +447,21 @@ def initial_objective_series(*, x_obs_all, d_ini, d_mod, depth, charge, subst, a
 
 
 def initial_objective(*, x_obs, **kw):
-    """1 stack ぶんの `Qini`。`initial_objective_series` の薄い包み。"""
+    """`Qini` of one stack. A thin wrapper around `initial_objective_series`."""
     return initial_objective_series(x_obs_all=np.asarray(x_obs, float)[None, :, :], **kw)[0]
 
 
 # ---------------------------------------------------------------------------
-# 生成時に確定させる「解析前の状態」
+# The "pre-analysis state" fixed at generation time
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class PreAnalysisState:
-    """生成の中で 1 度だけ組む解析前の状態。**export では再計算しない。**
+    """The pre-analysis state, built once inside the generation. **Not recomputed at export.**
 
-    `support_vector_set` は生成に実際に使った初期 SV（cfg 明示値）をそのまま持つ。
-    `support_vector_set_derived` は同じ状態の `Dini` から導いた値で、**記録用**。
-    MATLAB は後者を `SupportVector_Set` に書くので、両者の差を manifest に残す。
+    `support_vector_set` holds the initial SV actually used in the generation (the cfg value) as is.
+    `support_vector_set_derived` is the value derived from the `Dini` of the same state, **for the record**.
+    MATLAB writes the latter to `SupportVector_Set`, so the difference between the two is kept in the manifest.
     """
 
     rule: str
@@ -493,7 +493,7 @@ class PreAnalysisState:
 
 
 def _peaks_series(d: np.ndarray, depth: np.ndarray):
-    """(P, nz, ne) -> p, w, h それぞれ (P, ne)。`peak_parameters` と同式。"""
+    """(P, nz, ne) -> p, w, h, each (P, ne). Same formula as `peak_parameters`."""
     z = np.asarray(depth, dtype=float)
     d = np.asarray(d, dtype=float)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -510,10 +510,10 @@ def build_pre_analysis_state(*, depth, charge, subst_index, anti_index, free_ind
                              feature_vectors, support_vector_set,
                              optimization_method_value, current_stack=1,
                              degree=1.0, alpha=1.0, d_const=None) -> PreAnalysisState:
-    """cfg と生成済み GT から、解析前の状態を 1 度だけ組む。
+    """Build the pre-analysis state once, from cfg and the generated GT.
 
-    `Dini` は **cfg だけ**から作る（GT は使わない）。GT を使うのは MATLAB と同じ
-    範囲に限る: `Dobs`/`Xobs`（観測パネル）と `*stk` 系（生成側の観測量）。
+    `Dini` is built **from cfg alone** (the GT is not used). The GT is used only to the same extent
+    as in MATLAB: `Dobs`/`Xobs` (the observation panel) and the `*stk` family (producer-side observables).
     """
     t0 = time.time()
     z = np.asarray(depth, dtype=float)
@@ -574,11 +574,11 @@ def build_pre_analysis_state(*, depth, charge, subst_index, anti_index, free_ind
 
 
 # ---------------------------------------------------------------------------
-# 書き出し（MATLAB h5write の向き: HDF5 の次元は MATLAB の逆順）
+# Writing (orientation of MATLAB h5write: HDF5 dimensions are MATLAB's in reverse order)
 # ---------------------------------------------------------------------------
 
 def _pad_cols(a: np.ndarray, width: int) -> np.ndarray:
-    """(P, k) を (P, width) へ 0 詰め。MATLAB は `*stk` を全元素幅で確保する。"""
+    """(P, k) -> (P, width), zero-padded. MATLAB allocates `*stk` at the full element width."""
     a = np.atleast_2d(np.asarray(a, dtype=float))
     if a.shape[1] > width:
         raise ValueError(f"width {a.shape[1]} > {width}")
@@ -591,10 +591,10 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
                        n_stack: int, symbols, charges, orbitals, subst_index, anti_index,
                        free_index, const_index, linked_index, materials, theta_obs,
                        photon_energy, feature_vectors, current_stack: int = 1) -> Dict[str, Any]:
-    """開いてある h5py.File に GUI 用フィールドを足す。戻り値は書いた名前の一覧。
+    """Add the GUI fields to an open h5py.File. Returns the list of names written.
 
-    軽量 profile が既に書いたもの（`Dstk`/`Xstk`/`stackxyt`/役割/forward 条件）は
-    **触らない**。ここで足すのは解析前の状態と、その結果欄の初期化だけ。
+    What the light profile already wrote (`Dstk`/`Xstk`/`stackxyt`/roles/forward conditions) is
+    **not touched**. Only the pre-analysis state and the initialized result fields are added here.
     """
     import h5py
     g = f["ezdeprof"]
@@ -610,17 +610,17 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
         written.append("/ezdeprof/" + name)
 
     def root(name, data, dtype, stack_axis=0):
-        """stack 軸だけ伸長可能にして書く。chunk は **stack 軸だけを切り、行数を小さく**。
+        """Write with only the stack axis extensible. The chunk **cuts only the stack axis, with a small row count**.
 
-        経緯:
-        1. `maxshape` だけ渡すと h5py が chunk を自動で選び、元素軸・深さ軸まで切ることがある。
-           1 画素読むのに多数の chunk を触るので、ランダムな 1 行の読み出しが遅い。
-        2. 行方向に大きな chunk にすると速く見えるが、これは **chunk が h5py 既定の
-           chunk cache（1 MiB）に入らず、キャッシュを素通りしていた偶然**。
-           `rdcc_nbytes` を広げると大きく落ちる。
-        3. いまは **128 行**。cache 設定に依らず安定する範囲。
-           連続レイアウトが最速だが、MATLAB 側が伸長可能を前提にする経路があるので
-           伸長可能のまま chunk を小さくする方を採った。
+        History:
+        1. With `maxshape` alone, h5py picks the chunk automatically and may cut the element and depth axes too.
+              Reading one pixel then touches many chunks, so a random single-row read is slow.
+        2. Large chunks along rows look fast, but that was **the accident that the chunk did not fit h5py's
+              default chunk cache (1 MiB) and bypassed the cache**.
+              Enlarging `rdcc_nbytes` slows it down a lot.
+        3. Now **128 rows**: a range that is stable regardless of the cache settings.
+              A contiguous layout is fastest, but the MATLAB side has a path that assumes extensibility,
+              so the choice was to stay extensible with a small chunk.
         """
         a = np.asarray(data, dtype=dtype)
         ms = list(a.shape); ms[stack_axis] = None
@@ -636,7 +636,7 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
     angle = float(gui.emission_angle) if gui.emission_angle is not None else float(tho.max())
     col = np.asarray(gui.colours, dtype=float) if gui.colours is not None else matlab_lines_colours(ne)
 
-    # --- 元素の見出しと材料定数 -------------------------------------------------
+    # --- Element headings and material constants ------------------------------------
     ez_str("element", element_labels(symbols, charges))
     ez_str("stringcharge", string_charges(charges))
     ez("Col", col.T, "f4")                                       # MATLAB (ne,3)
@@ -647,7 +647,7 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
                       ("molecularweight", materials.molecular_weight), ("bandgap", materials.band_gap)):
         ez(name, np.asarray(arr, dtype="f4").reshape(ne, 1))
 
-    # --- 測定条件 ---------------------------------------------------------------
+    # --- Measurement conditions -----------------------------------------------------
     ez("datapoints", np.array([tho.size, 1, thp.size], dtype="u2").reshape(3, 1))
     ez("angle", np.array([[angle]], dtype="f4"))
     ez("photon", np.array([[float(photon_energy)]], dtype="f4"))
@@ -655,12 +655,12 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
     ez("thetaopt", thp.astype("f4").reshape(1, -1))
     ez("slice", np.array([nz], dtype="f4"))
 
-    # --- 場面の初期パラメータ（cfg から。GT からではない） -----------------------
+    # --- Initial scene parameters (from cfg, not from the GT) --------------------------
     for name, v in (("thckini", gui.thck_ini), ("abrpini", gui.abrp_ini), ("subsini", gui.subs_ini),
                     ("thckmod", gui.thck_mod), ("abrpmod", gui.abrp_mod), ("subsmod", gui.subs_mod)):
         ez(name, np.asarray(v, dtype="f4").reshape(-1, 1))
 
-    # --- 解析前の状態 -----------------------------------------------------------
+    # --- Pre-analysis state ---------------------------------------------------------
     ez("lambdaobs", state.lambda_obs.T.astype("f4").reshape(1, ne, nz))
     ez("lambdaopt", state.lambda_opt.T.astype("f4").reshape(1, ne, nz))
     ez("TransMatOpt", np.transpose(state.trans_mat_opt, (2, 1, 0)).astype("f4"))
@@ -682,9 +682,9 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
     ez("Sprs_Set", state.sprs_set.astype("f4").reshape(-1, 1))
     ez("Sprs_Calc", state.sprs_set.astype("f4").reshape(-1, 1))
     ez("Qini", state.q_ini.astype("f4").reshape(-1, 1))
-    ez("Qopt", np.full((3, 1), np.nan, dtype="f4"))              # 参照でも Qopt だけが NaN
+    ez("Qopt", np.full((3, 1), np.nan, dtype="f4"))              # in the reference too, only Qopt is NaN
 
-    # --- 進捗（未解析） ---------------------------------------------------------
+    # --- Progress (not analyzed) ----------------------------------------------------
     ez("currentloop", np.array([1], dtype="u2"))
     ez("currentstack", np.array([current_stack], dtype="u8"))
     ez("iterationinterval", np.array([1], dtype="u8"))
@@ -693,7 +693,7 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
     ez("calculationinitialized", np.array([1, 1, n_stack], dtype="u8").reshape(3, 1))
     ez("verificationstatus", np.array([0], dtype="u1"))
 
-    # --- GUI 設定（cfg で明示。解析を縛るものではない） --------------------------
+    # --- GUI settings (explicit in cfg; they do not bind the analysis) -----------------
     for name, v in (("NP_Set", np_set), ("NP_Calc", gui.np_calc), ("NP_Max", np_max),
                     ("crossecapproximord", gui.cross_sec_approx_ord),
                     ("crossecapproximview", gui.cross_sec_approx_view),
@@ -716,7 +716,7 @@ def write_gui_datasets(f, *, state: PreAnalysisState, gui: GuiSettings, ne: int,
     ez("holdout", np.array([gui.holdout], dtype="u8"))
     ez("numberofmodeling", np.array([gui.number_of_modeling], dtype="u8"))
 
-    # --- root の結果欄（解析前の初期化） -----------------------------------------
+    # --- Root result fields (initialized before analysis) ----------------------------
     fvw = 2 + 3 * ne
     svw = 3 * ne
     p = n_stack
