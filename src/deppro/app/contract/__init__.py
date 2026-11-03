@@ -1,7 +1,7 @@
-"""P1 契約層: ProblemSpec（観測のみ）/ GroundTruth（別）/ 既存指標 Evaluator / provenance / 対象台帳。
+"""P1 contract layer: ProblemSpec (observations only) / GroundTruth (separate) / the existing Evaluator metrics / provenance / the dataset registry.
 
-再 forward の合否は ``metrics.closure_gate`` が付ける（noise = 0 のデータセットだけ PASS/FAIL、
-noise > 0 では残差を記録するだけ）。core からこの層を import しない。
+The pass/fail of the re-forward is assigned by ``metrics.closure_gate`` (PASS/FAIL only for datasets with noise = 0;
+with noise > 0 only the residual is recorded). The core does not import this layer.
 """
 from .dataset_files import (  # noqa: F401
     FAMILIES, FolderSpec, discover_files, jsonable, parse_dataset_folder,

@@ -34,8 +34,8 @@ import numpy as np
 from scipy.special import erf
 
 from deppro import TransferMatrix, ElementConfig, CompoundDatabase
-# 配布対象の共有カーネルから取る（benchmarks は pyproject の exclude 対象なので、
-# wheel からは import できない）。d2s2d と同じ向きに揃える。
+# Taken from the shipped shared kernel (benchmarks is excluded in pyproject, so it
+# cannot be imported from the wheel). Same direction as d2s2d.
 from deppro.simulate.scene_kernel import CHECKERED_7ELEM
 from deppro.simulate.d2s2d import add_noise
 

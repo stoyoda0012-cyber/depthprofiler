@@ -13,7 +13,7 @@ class PhysicsCheck:
     """Result of a single physical validity check on a depth profile.
 
     Attributes:
-        name: Short check name (e.g., "組成整合", "非負性")
+        name: Short check name (e.g., "composition sum", "non-negativity")
         passed: Whether the check passed
         value: Measured value
         threshold: Threshold for pass/fail

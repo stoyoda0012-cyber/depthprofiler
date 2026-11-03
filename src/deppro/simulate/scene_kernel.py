@@ -1,13 +1,13 @@
-"""場面生成の共有カーネル — 配布対象。
+"""Shared scene-generation kernel (shipped).
 
-`benchmarks/generate_checkered.py` にあったものを、**配布されるパッケージ側へ移した**。
-`deppro/simulate/d2s2d.py` が module 直下でこれらを import する一方、`pyproject.toml` は
-`deppro.benchmarks*` を配布から除外していたため、**インストールした wheel では `deppro` が
-丸ごと import できなかった**（`import deppro.imfp` すら落ちた）。開発 checkout でだけ
-成り立つ構造だったので、依存の向きを benchmarks -> simulate へ直す。
+Moved from `benchmarks/generate_checkered.py` **into the shipped package**.
+`deppro/simulate/d2s2d.py` imported these at module level while `pyproject.toml`
+excluded `deppro.benchmarks*` from the distribution, so **in an installed wheel `deppro`
+could not be imported at all** (even `import deppro.imfp` failed). That only held together
+in a development checkout, so the dependency direction is fixed to benchmarks -> simulate.
 
-コードは移動しただけで、式も既定値も変えていない。`generate_checkered` はここから
-再 export するので、既存の import 経路はそのまま動く。
+The code was only moved; neither formulas nor defaults changed. `generate_checkered`
+re-exports from here, so the existing import paths keep working.
 """
 
 from dataclasses import dataclass, field

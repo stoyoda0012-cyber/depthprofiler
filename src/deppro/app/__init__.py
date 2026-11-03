@@ -81,13 +81,13 @@ from deppro.app.pipeline_bridge import batch_solve, read_ezdeprof, run_pipeline
 
 
 def __getattr__(name: str):
-    """``read_fitpara_areas`` だけを遅延解決する。
+    """Resolve only ``read_fitpara_areas`` lazily.
 
-    ``fitpara_reader`` は兄弟パッケージ toyomacro（optional extra ``fit``）を必要と
-    する。2026-10-19 からは fitpara_reader 自身が toyomacro を関数内で遅延 import
-    するので、この属性の解決は toyomacro 無しでも通り、ImportError（``deppro[fit]``
-    を名指し）は ``read_fitpara_areas(...)`` を呼んだ時点で出る。遅延解決は
-    ``import deppro.app`` を fitpara_reader の import から切り離すために残す。
+    ``fitpara_reader`` needs the sibling package toyomacro (optional extra ``fit``).
+    Since 2026-10-19 fitpara_reader itself imports toyomacro lazily inside the function,
+    so resolving this attribute works without toyomacro and the ImportError (naming
+    ``deppro[fit]``) comes when ``read_fitpara_areas(...)`` is called. The lazy resolution
+    stays so that ``import deppro.app`` is decoupled from importing fitpara_reader.
     """
     if name == "read_fitpara_areas":
         # fitpara_reader imports toyomacro lazily, so this import no longer fails

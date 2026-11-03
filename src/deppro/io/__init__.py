@@ -1,7 +1,7 @@
 """
-deppro.io - MATLAB互換 I/O モジュール
+deppro.io - MATLAB-compatible I/O
 
-DepthProfiler GUI と互換性のある H5 ファイルの読み書き。
+Reading and writing H5 files compatible with the DepthProfiler GUI.
 """
 
 from .h5_writer import H5Writer, create_gui_compatible_h5

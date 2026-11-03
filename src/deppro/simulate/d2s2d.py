@@ -34,8 +34,8 @@ from scipy.optimize import minimize_scalar
 from deppro import TransferMatrix, ElementConfig, CompoundDatabase
 from deppro.depth_profile import wasserstein_distance_1d
 
-# 配布対象の共有カーネルから取る。以前は deppro.benchmarks.generate_checkered から
-# import していたが、benchmarks は配布に含まれないので wheel では落ちていた。
+# Taken from the shipped shared kernel. This used to import from deppro.benchmarks.generate_checkered,
+# but benchmarks is not shipped, so the import failed in the wheel.
 from deppro.simulate.scene_kernel import (
     SimulationConfig,
     PRESET_6ELEM_STANDARD,

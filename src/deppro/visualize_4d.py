@@ -1040,7 +1040,7 @@ class IsosurfaceRenderer:
         """Opaque isocap with concentration-weighted element colours.
 
         Instead of overlapping semi-transparent per-element caps (which
-        blend into a washed-out pink — "桜色" artifact), produce a
+        blend into a washed-out pink — the "cherry-blossom" artifact), produce a
         single mesh with per-cell RGB colour = weighted average of
         visible element colours by local concentration.
 
@@ -1305,7 +1305,7 @@ class IsosurfaceRenderer:
 
         # --- Phase 2: Composite isocaps (concentration-weighted colour) ---
         # Single opaque mesh per boundary face.  Eliminates the pink
-        # "桜色" artifact from overlapping per-element semi-transparent caps.
+        # "cherry-blossom" (washed-out pink) artifact from overlapping per-element semi-transparent caps.
         cap_defs = [
             # (axis, [(face_idx, pos), ...], spacing, upscale)
             (2, [(0, 0.0), (cnz - 1, z_max)],
