@@ -1,20 +1,20 @@
-"""FeatureVector -> 深さプロファイル D。
+"""FeatureVector -> depth profile D.
 
-MATLAB 側の対応（`+deppro/+core/CalculateDistribution.m`、`'Simulation'` 分岐）。
-互換モードなので **式の版と反復回数を identity に持たせ、挙動を勝手に直さない**。
+MATLAB counterpart (`+deppro/+core/CalculateDistribution.m`, the `'Simulation'` branch).
+This is a compatibility mode, so **the formula version and the iteration count are part of the identity, and the behavior is not "fixed"**.
 
-特に、末尾の 30 回固定ループは:
+In particular, the fixed 30-iteration loop at the end:
 
     for k = 1:30
         psuni = sum(D.*q,2)<0;  nguni = sum(D.*q,2)>0
         D(psuni, antisubst(q_anti>=0)) *= (1+100*exp(-k/2))
         D(nguni, antisubst(q_anti< 0)) *= (1+100*exp(-k/2))
-        D(:,antisubst) /= sum(D,2)            % 非基板列だけを、基板込みの和で割る
+        D(:,antisubst) /= sum(D,2)            % only the non-substrate columns, divided by the sum including the substrate
     end
 
-不動点は総和 1 だが収束は調和的で、30 回では界面（基板が 1 に近く膜が残る所）で
-最大 +4.7% の超過が残る。**これを直すと既存 GT と別物になる**ので直さない。
-収束改善は別モード・別 identity。
+The fixed point has sum 1, but convergence is harmonic: after 30 iterations an excess of up to
++4.7% remains at the interface (where the substrate is near 1 and film remains). **Fixing this would
+make it a different thing from the existing GT**, so it is not fixed. Better convergence is a separate mode with a separate identity.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from typing import Sequence
 import numpy as np
 from scipy.special import erf
 
-#: 互換モードの identity。式の版と反復回数を含める。
+#: Identity of the compatibility mode. Includes the formula version and the iteration count.
 COMPAT_IDENTITY = "matlab-CalculateDistribution/Simulation/Gaussian/iter30"
 
 CHARGE_ITERATIONS = 30
@@ -33,7 +33,7 @@ CHARGE_ITERATIONS = 30
 
 @dataclass(frozen=True)
 class ProfileSpec:
-    """D を組むのに要るもの（stack に依らない部分）。"""
+    """What is needed to build D (the part that does not depend on the stack)."""
 
     depth: np.ndarray                 # (nz,) Å
     charge: np.ndarray                # (ne,)
@@ -50,7 +50,7 @@ def _gaussian_sigma(width: np.ndarray) -> np.ndarray:
 
 
 def depth_profiles(fv: np.ndarray, spec: ProfileSpec) -> np.ndarray:
-    """``D[s, z, e]`` を返す。`fv` は (nstack, 2+3*nfree)。"""
+    """Return ``D[s, z, e]``. `fv` is (nstack, 2+3*nfree)."""
     if spec.distribution != "Gaussian":
         raise NotImplementedError(
             f"distribution={spec.distribution!r} is not implemented "
@@ -64,22 +64,22 @@ def depth_profiles(fv: np.ndarray, spec: ProfileSpec) -> np.ndarray:
     fcl = sorted(list(spec.free_index) + list(spec.const_index) + list(spec.linked_index))
     anti = [i for i in range(ne) if i not in subst]
 
-    # x = [FeatureVector , SupportVector の linked 部分]  (MATLAB: x = [x y])
+    # x = [FeatureVector, the linked part of SupportVector]  (MATLAB: x = [x y])
     sv = np.asarray(spec.support_vector, dtype=float).ravel()
-    subs_height = sv.reshape(-1, 3)[: len(subst), 2] / 100.0     # 3 行目 = height
+    subs_height = sv.reshape(-1, 3)[: len(subst), 2] / 100.0     # third row = height
     x = np.concatenate([fv, np.repeat(sv[3 * len(subst):][None, :], ns, axis=0)], axis=1)
 
     thck = fv[:, 0]
     abrp = _gaussian_sigma(fv[:, 1])
 
     D = np.zeros((ns, nz, ne), dtype=float)
-    # 基板: erf の立ち上がり
+    # Substrate: the erf rise
     ramp = 0.5 * np.abs(1.0 + erf((z[None, :] - thck[:, None]) / abrp[:, None]))   # (ns, nz)
     for j, e in enumerate(subst):
         D[:, :, e] = subs_height[j] * ramp
     remainder = np.abs(1.0 - D[:, :, subst].sum(axis=2))                            # (ns, nz)
 
-    # 膜成分: Gaussian 分岐（MATLAB は 1-based で x(3k), x(3k+1), x(3k+2)）
+    # Film components: the Gaussian branch (MATLAB is 1-based: x(3k), x(3k+1), x(3k+2))
     for k, e in enumerate(fcl, start=1):
         pos = x[:, 3 * k - 1]
         sig = _gaussian_sigma(x[:, 3 * k])
@@ -88,7 +88,7 @@ def depth_profiles(fv: np.ndarray, spec: ProfileSpec) -> np.ndarray:
             shape = np.exp(-((z[None, :] - pos[:, None]) ** 2) / sig[:, None] ** 2)
         D[:, :, e] = hgt[:, None] * shape * remainder
 
-    # MATLAB: D(D<0)=0; D(D>1)=1; D(isnan(D))=1;  ── NaN は 1 になる（0 ではない）
+    # MATLAB: D(D<0)=0; D(D>1)=1; D(isnan(D))=1;  ── NaN becomes 1 (not 0)
     D[D < 0] = 0.0
     D[D > 1] = 1.0
     D[np.isnan(D)] = 1.0
@@ -113,13 +113,13 @@ def depth_profiles(fv: np.ndarray, spec: ProfileSpec) -> np.ndarray:
 def support_vector_from_profile(
     d: np.ndarray, depth: np.ndarray, subst_index: Sequence[int], linked_index: Sequence[int]
 ) -> np.ndarray:
-    """D から SupportVector_Set を作る（`SimulationUpdater.computeSimulationObservables`）。
+    """Build SupportVector_Set from D (`SimulationUpdater.computeSimulationObservables`).
 
-        p = sum(D .* depth) ./ sum(D)                  重心
+        p = sum(D .* depth) ./ sum(D)                  centroid
         h = 100 * max(D)
         w = 2*sqrt(log(2)/pi) * trapz(depth, 100*D) ./ h
 
-    並びは [p,w,h] を subst について、続けて linked について。
+    The order is [p,w,h] for each subst, then for each linked.
     """
     d = np.asarray(d, dtype=float)
     z = np.asarray(depth, dtype=float)
@@ -134,18 +134,18 @@ def support_vector_from_profile(
 
 
 def depth_profiles_sequential(fv: np.ndarray, spec: ProfileSpec) -> np.ndarray:
-    """stack 順に D を作る。**SupportVector は前 stack の出力が次の入力になる。**
+    """Build D in stack order. **The SupportVector output of one stack is the input of the next.**
 
-    これは実測で確かめた挙動で（前 stack の SV を使う方が一致がよい）、
-    その結果 **生成は stack 順に依存する**。stack を並べ替えたり並列に飛ばしたりすると
-    別の値になる。`spec.support_vector` は stack 1 の入力（初期値）として使う。
+    This behavior was confirmed by measurement (using the previous stack's SV agrees better),
+    and as a result **generation depends on the stack order**: reordering stacks or running them
+    in parallel gives different values. `spec.support_vector` is the input (initial value) of stack 1.
 
-    2026-09-09: `chunk` 引数を外した（宣言されていたが本体で使われていなかった）。
+    2026-09-09: the `chunk` argument was removed (declared but unused in the body).
 
-    ただし **この再帰は stack を重ねると初期値を忘れる**（初期 SV を振っても、後の stack
-    では差が消える）。保存済みの D から SV を復元すれば frame 単位の並列再生成ができ、
-    逐次結果と float32 保存の精度の範囲で一致する。**規則は逐次だが、再現は checkpoint
-    並列可**。確かめたのは一部の場面だけで、一般の場面については確かめていない。
+    However, **this recursion forgets its initial value as stacks accumulate** (perturbing the initial
+    SV makes no difference in later stacks). Restoring the SV from a saved D allows frame-wise parallel
+    regeneration that agrees with the sequential result within float32 storage precision. **The rule is
+    sequential, but reproduction can be checkpoint-parallel.** Verified only on some scenes, not in general.
     """
     fv = np.atleast_2d(np.asarray(fv, dtype=float))
     ns = fv.shape[0]
