@@ -14,7 +14,6 @@ src/deppro/app/contract/problem.py    # 38 lines
 src/deppro/app/contract/provenance.py    # 25 lines
 src/deppro/app/contract/registry.py    # 18 lines
 src/deppro/app/depth_result.py    # 1 lines
-src/deppro/app/matlab_generation.py    # 178 lines
 src/deppro/app/physics_check.py    # 13 lines
 src/deppro/app/pipeline_bridge.py    # 17 lines
 src/deppro/benchmark.py    # 76 lines

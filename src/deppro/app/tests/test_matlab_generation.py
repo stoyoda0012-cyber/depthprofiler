@@ -124,7 +124,7 @@ def test_rejects_an_unconfirmed_manifest(tmp_path):
 def test_rejects_a_confirmation_from_another_generation(tmp_path):
     """別世代の確認を流用させない。"""
     _write_dataset(tmp_path, confirmed_generation="20260101T000000000-999999")
-    with pytest.raises(mg.ManifestRejected, match="別世代"):
+    with pytest.raises(mg.ManifestRejected, match="another generation"):
         mg.load_confirmed_manifest(tmp_path)
 
 
@@ -212,7 +212,7 @@ def test_rejects_a_main_file_that_the_list_does_not_cover(tmp_path):
     manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest["mainFile"] = str(other)
     path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(mg.ManifestRejected, match="resolved.files のどれとも"):
+    with pytest.raises(mg.ManifestRejected, match="none of resolved.files"):
         mg.load_confirmed_manifest(tmp_path)
 
 
@@ -236,7 +236,7 @@ def test_stack_coordinates_reject_a_permuted_stackxyt(tmp_path):
         xyt = f["stackxyt"][()]
         del f["stackxyt"]
         f.create_dataset("stackxyt", data=xyt[:, ::-1])   # 行を並べ替える
-    with pytest.raises(mg.ManifestRejected, match="宣言式"):
+    with pytest.raises(mg.ManifestRejected, match="declared formula"):
         mg.stack_coordinates(mg.load_confirmed_manifest(tmp_path))
 
 
@@ -248,7 +248,7 @@ def test_stack_coordinates_reject_out_of_range_values(tmp_path):
         xyt[0, 0] = 99
         del f["stackxyt"]
         f.create_dataset("stackxyt", data=xyt)
-    with pytest.raises(mg.ManifestRejected, match="範囲外"):
+    with pytest.raises(mg.ManifestRejected, match="out of range"):
         mg.stack_coordinates(mg.load_confirmed_manifest(tmp_path))
 
 
@@ -262,7 +262,7 @@ def test_sample_ids_reject_bool_and_non_integer(tmp_path):
     result = mg.load_confirmed_manifest(tmp_path)
     with pytest.raises(ValueError, match="bool"):
         mg.sample_ids(result, [True])
-    with pytest.raises(ValueError, match="整数でない"):
+    with pytest.raises(ValueError, match="not an integer"):
         mg.sample_ids(result, [1.9])
     with pytest.raises(ValueError, match="str"):
         mg.sample_ids(result, ["2"])
@@ -307,7 +307,7 @@ def test_rejects_a_relative_main_file(tmp_path):
     manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest["mainFile"] = "main.h5"
     path.write_text(json.dumps(manifest), encoding="utf-8")
-    with pytest.raises(mg.ManifestRejected, match="相対パス"):
+    with pytest.raises(mg.ManifestRejected, match="relative path"):
         mg.load_confirmed_manifest(tmp_path)
 
 
@@ -316,7 +316,7 @@ def test_stackxyt_message_does_not_promise_a_date_boundary(tmp_path):
     _write_dataset(tmp_path, with_stackxyt=False)
     with pytest.raises(mg.ManifestRejected) as exc:
         mg.stack_coordinates(mg.load_confirmed_manifest(tmp_path))
-    assert "版" in str(exc.value)
+    assert "generator version" in str(exc.value)
 
 
 # --------------------------------------------------------------------------
@@ -354,7 +354,7 @@ def test_generate_raises_on_timeout(tmp_path):
     fake = tmp_path / "slow_dp"
     fake.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
-    with pytest.raises(mg.MatlabGenerationError, match="秒"):
+    with pytest.raises(mg.MatlabGenerationError, match="did not finish within"):
         mg.generate({"outputFolder": str(tmp_path / "out")}, cli=fake, timeout=0.5)
 
 
@@ -420,7 +420,7 @@ def test_generate_rejects_a_manifest_that_does_not_match_the_cfg(tmp_path):
     out = tmp_path / "out"
     _write_dataset(out, stack=6, nx=3, ny=2, nt=1)
     exe = _do_nothing_cli(tmp_path)
-    with pytest.raises(mg.ManifestRejected, match="この要求の生成物ではない"):
+    with pytest.raises(mg.ManifestRejected, match="not the product of this request"):
         mg.generate({"outputFolder": str(out), "gridX": 40, "gridY": 40, "timeSteps": 200}, cli=exe)
     # 一致していれば通る
     ok = mg.generate({"outputFolder": str(out), "gridX": 3, "gridY": 2, "timeSteps": 1}, cli=exe)
@@ -439,7 +439,7 @@ def test_generate_kills_the_whole_process_group_on_timeout(tmp_path):
     exe.write_text(
         f"#!/bin/sh\n/bin/sh -c 'sleep 5; echo late > {marker}' \nexit 0\n", encoding="utf-8")
     exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
-    with pytest.raises(mg.MatlabGenerationError, match="秒で終わらなかった"):
+    with pytest.raises(mg.MatlabGenerationError, match="did not finish within"):
         mg.generate({"outputFolder": str(out), "gridX": 3, "gridY": 2, "timeSteps": 1},
                     cli=exe, timeout=1.0)
     time.sleep(6.0)
@@ -489,7 +489,7 @@ def test_sample_ids_still_work_without_any_grid(tmp_path):
     result = mg.load_confirmed_manifest(tmp_path)
     # 「未対応レイアウト」の一般分岐でも UnsupportedLayout は出るので、それでは
     # 専用分岐を通ったことの証拠にならない。flat_samples 固有の理由を求める。
-    with pytest.raises(mg.UnsupportedLayout, match="測定点数"):
+    with pytest.raises(mg.UnsupportedLayout, match="number of measurement points"):
         mg.stack_coordinates(result)
     assert mg.sample_ids(result)[-1] == "20260907T000000000-0abcde#7"
     assert mg.grid_coverage(result)["type"] == "flat_samples"
