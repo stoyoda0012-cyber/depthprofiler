@@ -29,7 +29,6 @@ src/deppro/inverse_solver.py    # 129 lines
 src/deppro/io/__init__.py    # 2 lines
 src/deppro/io/example_create_hxps_h5.py    # 92 lines
 src/deppro/io/h5_writer.py    # 334 lines
-src/deppro/io/initializer.py    # 143 lines
 src/deppro/paths.py    # 64 lines
 src/deppro/pipeline.py    # 99 lines
 src/deppro/producer/binding.py    # 12 lines
