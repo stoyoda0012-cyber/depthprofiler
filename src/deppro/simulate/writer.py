@@ -242,7 +242,7 @@ class H5Writer:
     Besides the element tables (``elementsymbol`` / ``orbital`` /
     ``compound``), ``finalize`` writes the two datasets that
     ``deppro.visualize_4d.load_gt_4d`` reads without an existence check:
-    ``ezdeprof/element`` (charge-labelled names, ``'Si(+4)'``) and
+    ``ezdeprof/element`` (charge-labeled names, ``'Si(+4)'``) and
     ``ezdeprof/dxdydt`` (``[[nx, ny, nt]]``, shape (1, 3) float64, the
     layout of ``deppro.app.depth_result_writer``). Samples that are not on
     a spatial grid are recorded as one row, ``[[n_pixels, 1, 1]]``.
@@ -373,8 +373,8 @@ class H5Writer:
             ez.create_dataset('orbital', data=np.array(orbitals, dtype='S10'))
             ez.create_dataset('compound', data=np.array(compounds, dtype='S20'))
 
-            # Charge-labelled element names ('Si(+4)'): what the loaders key
-            # colours and element order on (ezdeprof/element, MATLAB).
+            # Charge-labeled element names ('Si(+4)'): what the loaders key
+            # colors and element order on (ezdeprof/element, MATLAB).
             labels = [_element_label(sym, c) for sym, c in zip(symbols, preset.charges)]
             ez.create_dataset('element', data=labels, dtype=dt_str)
 

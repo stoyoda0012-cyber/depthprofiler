@@ -96,7 +96,7 @@ Capabilities that can be read off the tests (excerpt):
 Scripts (not tests; the old paths were all `.../test_<name>.py`):
 
 - Uniform mixture versus layered structure → `diagnostics/uniform_detection.py`
-- Behaviour of the structure estimator → `diagnostics/structure_analyzer.py`
+- Behavior of the structure estimator → `diagnostics/structure_analyzer.py`
 - Thickness accuracy and a 5-layer stack → `diagnostics/thickness_accuracy.py`, `diagnostics/five_layer_free.py`
 - Film structure with GenericLayer → `diagnostics/film_structure_solver.py`
 - Failure rate over 100 trials → `benchmarks/robustness/failure_rate_100trials.py`
@@ -483,7 +483,7 @@ Neither suits every sample; adjust it to the data and the noise.
 
 ⚠️ **Poisson X % and Gaussian X % are not directly comparable**
 
-| Noise | Definition | Behaviour at low intensity |
+| Noise | Definition | Behavior at low intensity |
 |--------|------|----------------|
 | Gaussian X % | σ = X % at every intensity | constant |
 | Poisson X % | σ = X % **only at the maximum intensity I = 1.0** | σ ≈ 3X % at I = 0.1 |
