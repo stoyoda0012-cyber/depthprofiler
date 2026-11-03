@@ -1,125 +1,130 @@
-# H5 データ形式 — producer 別 dialect
+# H5 data format: one dialect per producer
 
-## 0. この文書の読み方
+## 0. How to read this document
 
-このリポジトリの H5 には**単一の schema が無い**。書き手が 5 系統あり、
-group 配置・grid の記録場所・`dxdydt` の有無と意味がそれぞれ違う。
+The H5 files in this repository have **no single schema**. Five producers write them,
+and they differ in group layout, in where the grid is recorded, and in whether
+`dxdydt` exists and what it means.
 
-ファイルを触る前に、**どの producer が書いたかを先に確定させること**。
-「`/ezdeprof` に全部入っている」「`dxdydt` は表示 grid ではない」といった
-一律の前提はどれも成り立たない。
+Before touching a file, **establish which producer wrote it**. Blanket assumptions
+such as "everything is under `/ezdeprof`" or "`dxdydt` is not the display grid" hold
+for some dialects and not for others.
 
-本文は次を明示的に分けて書く:
+The text separates two kinds of statement:
 
-- **共通保証**（§3）— どの dialect でも成り立つと当てにしてよいこと
-- **実装上の慣行**（§4）— その producer の出力に限って依存してよいこと
+- **Common guarantees** (§3): what you may rely on in every dialect
+- **Implementation conventions** (§4): what you may rely on only for that producer's output
 
-数値の実例（特定ファイルの `stack` や時間次元）はここに固定しない。
-自分のファイルで確かめる手順は §6 にある。
+Concrete numbers (the `stack` or time dimension of a particular file) are not pinned
+here. §6 shows how to check your own file.
 
-## 1. producer 別 dialect
+## 1. Dialects by producer
 
-| ID | producer | トップレベル | `/ezdeprof` の主な中身 | `stack` | `dxdydt` | grid の記録場所 |
+| ID | Producer | Top level | Main contents of `/ezdeprof` | `stack` | `dxdydt` | Where the grid is recorded |
 |---|---|---|---|---|---|---|
-| **D1** benchmark simple | `benchmarks/generate_checkered.py::save_to_h5` | `Dstk`, `Xstk`, `Drlt` | `depth` (1,-1), `thetaobs`, `stepsize`, `gammaeff`, `photonenergy`, `workfunction`, `charge`, `free`/`subst`/`linked`/`linkedconst`, `TransMatObs`, `totaldepth`, `m`, `noise` | 書く `[n_pixels]` | **書かない** | `ez.attrs["nx"]`, `ez.attrs["ny"]` |
-| **D2** MATLAB 互換フル | `benchmarks/generate_checkered.py::save_to_matlab_h5` | `Dstk`, `Drlt`, `Dtrn`, `Xstk`, `Xrlt`, ほか | D1 系に加え MATLAB GUI 由来の制御・品質メタ（`loop`, `currentloop`, `currentstack`, `Qini`, `Qopt`, 各種 `*value` フラグ, `prpties` 等） | 書く `[n_pixels]` uint64 | **書く** `[[nx],[ny],[1]]` shape (3,1) uint16 | `dxdydt[0:2]`（＝`config.nx`, `config.ny`）と `ez.attrs["nx"/"ny"]` の両方 |
-| **D3** simulate writer | `simulate/writer.py` | `Dstk`, `Xstk`（gzip） | `depth` (-1,1), `thetaobs`, `stepsize` (1,1), `gammaeff`, `photonenergy`, `workfunction`, `elementsymbol`/`orbital`/`compound`, **`element`**（電荷付きラベル `Si(+4)`）, `charge`, `linkedconst`, `free`/`subst`/`linked`, `TransMatObs`, `loop`, `currentloop`, `BindingEnergy` | 書く `[[n_pixels]]` f64 | **書く** `[[nx, ny, nt]]` shape (1,3) f64（D4 と同じ layout）。`finalize(nx=, ny=)` 未指定なら `[[n_pixels, 1, 1]]` | `dxdydt[0:2]`（`finalize` の `nx`/`ny`。`n_pixels` が `nx*ny` の倍数でなければ書く前に `ValueError`） |
-| **D4** app result | `app/depth_result_writer.py` | **`/D_est`** group (`data`, `solver`, `timestamp`), **`/Xstk`**。**`Dstk` は無い** | `depth` (-1,1), `stepsize` (1,1), `element`, `dxdydt`, `thetaobs`（任意）, `TransMatObs`（任意） | **書かない** | **書く** `[[n_x, n_y, n_t]]` shape (1,3) f64。`n_t = n_px // (n_x*n_y)` | `dxdydt` が表示 grid そのもの |
-| **D5** legacy io writer | `io/h5_writer.py` | MATLAB 準拠の多数 | `SimulationOrExperiment`, `depth`, `totaldepth`, `stepsize`, `m`, `slice`, `thetaobs`, `thetaopt`, `angle`, `elementsymbol`, `orbital`, `compound`, `bindingenergy`, `elementnumber`, `orbitalnumber`, `charge`, `stringcharge`, `element`, `subst`/`free`/`linked` ほか | 書く（`1` または `n_stack`） | **書く**（`[1, 1, 100]` を固定値で。参照ファイルに合わせた **legacy metadata**） | `dxdydt` からは決まらない |
-| *(後処理)* metric writer | `benchmark_h5_writer.py` | 既存ファイルを読み書き | `Dopt` 等を**追記** | — | — | — |
+| **D1** benchmark simple | `benchmarks/generate_checkered.py::save_to_h5` | `Dstk`, `Xstk`, `Drlt` | `depth` (1,-1), `thetaobs`, `stepsize`, `gammaeff`, `photonenergy`, `workfunction`, `charge`, `free`/`subst`/`linked`/`linkedconst`, `TransMatObs`, `totaldepth`, `m`, `noise` | written, `[n_pixels]` | **not written** | `ez.attrs["nx"]`, `ez.attrs["ny"]` |
+| **D2** MATLAB-compatible full | `benchmarks/generate_checkered.py::save_to_matlab_h5` | `Dstk`, `Drlt`, `Dtrn`, `Xstk`, `Xrlt`, and more | D1 plus the control and quality metadata of the MATLAB GUI (`loop`, `currentloop`, `currentstack`, `Qini`, `Qopt`, the `*value` flags, `prpties`, ...) | written, `[n_pixels]` uint64 | **written** `[[nx],[ny],[1]]`, shape (3,1) uint16 | both `dxdydt[0:2]` (= `config.nx`, `config.ny`) and `ez.attrs["nx"/"ny"]` |
+| **D3** simulate writer | `simulate/writer.py` | `Dstk`, `Xstk` (gzip) | `depth` (-1,1), `thetaobs`, `stepsize` (1,1), `gammaeff`, `photonenergy`, `workfunction`, `elementsymbol`/`orbital`/`compound`, **`element`** (charge-labelled names, `Si(+4)`), `charge`, `linkedconst`, `free`/`subst`/`linked`, `TransMatObs`, `loop`, `currentloop`, `BindingEnergy` | written, `[[n_pixels]]` f64 | **written** `[[nx, ny, nt]]`, shape (1,3) f64 (same layout as D4). Without `finalize(nx=, ny=)` it is `[[n_pixels, 1, 1]]` | `dxdydt[0:2]` (the `nx`/`ny` given to `finalize`; a `ValueError` before writing if `n_pixels` is not a multiple of `nx*ny`) |
+| **D4** app result | `app/depth_result_writer.py` | the **`/D_est`** group (`data`, `solver`, `timestamp`) and **`/Xstk`**. **No `Dstk`** | `depth` (-1,1), `stepsize` (1,1), `element`, `dxdydt`, `thetaobs` (optional), `TransMatObs` (optional) | **not written** | **written** `[[n_x, n_y, n_t]]`, shape (1,3) f64, with `n_t = n_px // (n_x*n_y)` | `dxdydt` is the display grid itself |
+| **D5** legacy io writer | `io/h5_writer.py` | many MATLAB-conforming datasets | `SimulationOrExperiment`, `depth`, `totaldepth`, `stepsize`, `m`, `slice`, `thetaobs`, `thetaopt`, `angle`, `elementsymbol`, `orbital`, `compound`, `bindingenergy`, `elementnumber`, `orbitalnumber`, `charge`, `stringcharge`, `element`, `subst`/`free`/`linked`, and more | written (`1` or `n_stack`) | **written** (the fixed value `[1, 1, 100]`, **legacy metadata** matching the reference file) | not derivable from `dxdydt` |
+| *(post-processing)* metric writer | `benchmark_h5_writer.py` | reads and writes an existing file | **appends** `Dopt` and similar | — | — | — |
 
-## 2. consumer 側の heuristic（`visualize_4d.py` の loader）
+## 2. Consumer-side heuristics (the loader in `visualize_4d.py`)
 
-| 項目 | 実装 |
+| Item | Implementation |
 |---|---|
-| ピクセル数 `n_px` | **トップレベル `Dstk` の shape[0]** から取る（`/ezdeprof/stack` は読まない） |
-| `dxdydt` | `f["ezdeprof/dxdydt"]` を**存在チェックなしで**読む |
-| `ez.attrs["nx"/"ny"]` | **読まない** |
-| grid 解決順 | ① 明示引数 `nx`/`ny` → ② `dxdydt[0]`, `dxdydt[1]` → ③ 親フォルダ名 `{Nx}x{Ny}x{Nt}` の正規表現 → ④ それでも `n_px` を割り切れなければ `ValueError` |
-| 時間次元 | `nt = n_px // (nx * ny)`（`dxdydt[2]` は使わない） |
-| reshape | MATLAB column-major（Fortran order のピクセルマップ） |
-| 存在チェックがある唯一の dataset | `ezdeprof/Col` |
+| Pixel count `n_px` | taken from **`shape[0]` of the top-level `Dstk`** (`/ezdeprof/stack` is not read) |
+| `dxdydt` | `f["ezdeprof/dxdydt"]` is read **without an existence check** |
+| `ez.attrs["nx"/"ny"]` | **not read** |
+| Grid resolution order | ① explicit `nx`/`ny` arguments → ② `dxdydt[0]`, `dxdydt[1]` → ③ a regular expression on the parent folder name `{Nx}x{Ny}x{Nt}` → ④ `ValueError` if `n_px` is still not divisible |
+| Time dimension | `nt = n_px // (nx * ny)` (`dxdydt[2]` is not used) |
+| Reshape | MATLAB column-major (a Fortran-order pixel map) |
+| The only dataset with an existence check | `ezdeprof/Col` |
 
-### 現行 loader との相性
+### Compatibility with the current loader
 
-| dialect | 相性 |
+| Dialect | Compatibility |
 |---|---|
-| **D5** | **現行 loader の想定に最も近い**（`Dstk` と `dxdydt` の両方がある） |
-| **D2** | `Dstk` と `dxdydt` の両方があり、`dxdydt[0:2]` が実際の grid と一致する |
-| **D3** | `Dstk`、`element`、`dxdydt` がそろい、`dxdydt[0:2]` が `finalize` に渡した grid（既定は 1 行 `n_pixels × 1`）と一致する |
-| **D1** | `dxdydt` が無いため `KeyError`。持っている grid 情報（`ez.attrs`）は loader に使われない |
-| **D4** | トップレベル `Dstk` が無いため**現行 loader では読めない**（`dxdydt` は持っている） |
+| **D5** | **closest to what the current loader expects** (has both `Dstk` and `dxdydt`) |
+| **D2** | has both `Dstk` and `dxdydt`, and `dxdydt[0:2]` matches the actual grid |
+| **D3** | has `Dstk`, `element` and `dxdydt`, and `dxdydt[0:2]` matches the grid given to `finalize` (by default one row, `n_pixels × 1`) |
+| **D1** | `KeyError`, because `dxdydt` is absent. The grid information it does carry (`ez.attrs`) is not used by the loader |
+| **D4** | **not readable by the current loader**, because there is no top-level `Dstk` (it does carry `dxdydt`) |
 
-この非対応は既知であり、この文書は現状を記述するもので、loader の修正を意味しない。
+These incompatibilities are known. This document describes the current state; it does
+not call for a change to the loader.
 
-## 3. 共通保証
+## 3. Common guarantees
 
-どの dialect でも当てにしてよいのは次だけ。
+Only the following hold in every dialect.
 
-1. `/ezdeprof` group が存在する。
-   ただし**主データがそこにあるとは限らない**（D4 は主データを `/D_est` に置く）。
-2. 配列は MATLAB レイアウトで保存される
-   （`(pixels, elements, depth)` / `(pixels, elements, angles)`）。
-3. 深さ軸 `depth` と `stepsize` は `/ezdeprof` にある。
-   **shape は dialect 依存**（`(1,-1)` / `(-1,1)` / `(1,1)`）で揃っていない。
-4. **index 群（`free` / `subst` / `linked`）が存在する dialect では、それは
-   MATLAB 由来の 1-based。** すべての dialect がこれらを持つわけではない
-   （D4 は持たない）。
+1. The `/ezdeprof` group exists.
+   **The main data is not necessarily there** (D4 keeps its main data under `/D_est`).
+2. Arrays are stored in MATLAB layout
+   (`(pixels, elements, depth)` / `(pixels, elements, angles)`).
+3. The depth axis `depth` and `stepsize` are under `/ezdeprof`.
+   **Their shapes depend on the dialect** (`(1,-1)` / `(-1,1)` / `(1,1)`) and are not aligned.
+4. **Where the index sets (`free` / `subst` / `linked`) exist, they are 1-based, as in
+   MATLAB.** Not every dialect has them (D4 does not).
 
-## 4. 実装上の慣行
+## 4. Implementation conventions
 
-その producer の出力に限って依存してよいもの。**別 dialect に持ち込まない。**
+What you may rely on only for that producer's output. **Do not carry it over to another
+dialect.**
 
 ### 4.1 `stack`
 
-`stack` は「書いた時点の総ピクセル数」。
+`stack` is "the total number of pixels at the time of writing".
 
-- **`stack = nx * ny * dt * n_phases` は `benchmarks/generate_checkered.py` の
-  `SimulationConfig.n_pixels` 固有の生成則**（`n_phases` は既定 1、2 = 行き＋戻り）。
-  D1 / D2 の出力にのみ当てはまり、他 dialect の `stack` をこの式で分解できる
-  保証はない。
-- D4 は `stack` を書かない。
-- runtime package の読み手はいない（loader は `Dstk.shape[0]` を使う）。
-  `stack` に依存する新しいコードを書くなら、対象 dialect を明示すること。
+- **`stack = nx * ny * dt * n_phases` is the generation rule of `SimulationConfig.n_pixels`
+  in `benchmarks/generate_checkered.py`** (`n_phases` defaults to 1; 2 means forward plus
+  backward). It applies only to D1 / D2 output; there is no guarantee that the `stack` of
+  another dialect factors this way.
+- D4 does not write `stack`.
+- Nothing in the runtime package reads it (the loader uses `Dstk.shape[0]`). New code
+  that depends on `stack` must name the dialect it targets.
 
 ### 4.2 `dxdydt`
 
-**意味が producer によって違う。**
+**Its meaning differs by producer.**
 
-- **D4** — 表示 grid そのもの（`[n_x, n_y, n_t]`）。
-- **D2** — `[nx, ny, 1]`。前 2 要素は生成時の grid。第 3 要素は 1 固定で、
-  時間次元ではない。
-- **D5** — `[1, 1, 100]` の固定値。参照ファイルとの互換のために書かれている
-  **legacy metadata** で、この値から grid や時間構造を読み取ることはできない。
-- **D3** — `[[nx, ny, nt]]`。`finalize(nx=, ny=)` に渡した grid と、`n_pixels // (nx*ny)` の時間次元（D4 と同じ layout）。未指定なら `[[n_pixels, 1, 1]]`。
-- **D1** — 存在しない。
+- **D4**: the display grid itself (`[n_x, n_y, n_t]`).
+- **D3**: `[[nx, ny, nt]]`, the grid given to `finalize(nx=, ny=)` and the time
+  dimension `n_pixels // (nx*ny)` (same layout as D4). Without a grid it is
+  `[[n_pixels, 1, 1]]`.
+- **D2**: `[nx, ny, 1]`. The first two entries are the generation grid. The third is
+  fixed at 1 and is not the time dimension.
+- **D5**: the fixed value `[1, 1, 100]`. This is **legacy metadata** written for
+  compatibility with the reference file; neither the grid nor the time structure can be
+  read from it.
+- **D1**: absent.
 
-`generate_checkered.py` の空間変調式に出てくる `dx`, `dy`（`eff_dx`/`eff_dy` は
-未指定時に `nx`/`ny` へフォールバック）は**生成側の変調レートのパラメータ**で
-あって、H5 の `dxdydt` 一般の意味ではない。
+The `dx`, `dy` in the spatial-modulation formula of `generate_checkered.py` (`eff_dx` /
+`eff_dy` fall back to `nx` / `ny` when not given) are **modulation-rate parameters on
+the generation side**, not the general meaning of `dxdydt` in H5.
 
 ### 4.3 `Dopt`
 
-`/ezdeprof/Dopt` を作るのは後処理の `benchmark_h5_writer.py` だけ。
-生成直後のファイルにあると期待しない。
+Only the post-processing `benchmark_h5_writer.py` creates `/ezdeprof/Dopt`. Do not
+expect it in a freshly generated file.
 
-## 5. ベンチマークフォルダ命名規則
+## 5. Benchmark folder naming
 
 ```
 Simulation/DepthProfiler/{Standard,Checkered}/{Nx}x{Ny}x{Nt}_{N}elem[_variant]/
 ```
 
-- `Standard/` = 6 元素 (OCAlTiSi)、`Checkered/` = 7 元素 (OBCAlTiSi、B 追加)
-- **これは表記の慣例ではなく、コードが実際にパースする入力。**
-  `visualize_4d._infer_grid_from_path()` が親フォルダ名から `{Nx}x{Ny}` を
-  正規表現で読み、`dxdydt` が使えないときの grid 推定に使う。
-- 中間階層を挟むフォルダや `Nt=1` の例外があるため、**パス定数の正本は
-  `deppro.benchmarks.paths`**（`GT_6ELEM` 等）。個々のパスをスクリプトに
-  直書きしない。
-- `paths.BENCHMARK_ROOT` は現状ホームディレクトリ相対で、`DEPPRO_*` 環境変数では
-  解決されない。
+- `Standard/` = 6 elements (OCAlTiSi), `Checkered/` = 7 elements (OBCAlTiSi, with B added)
+- **This is not a naming habit; the code parses it.**
+  `visualize_4d._infer_grid_from_path()` reads `{Nx}x{Ny}` from the parent folder name
+  with a regular expression and uses it to infer the grid when `dxdydt` is unusable.
+- Because some folders have an intermediate level and `Nt=1` is an exception, **the
+  authoritative path constants are in `deppro.benchmarks.paths`** (`GT_6ELEM` and so
+  on). Do not hard-code individual paths in scripts.
+- `paths.BENCHMARK_ROOT` is currently relative to the home directory and is not
+  resolved through a `DEPPRO_*` environment variable.
 
-## 6. 自分のファイルで dialect を判定する
+## 6. Determining the dialect of your own file
 
 ```python
 import h5py
@@ -134,10 +139,11 @@ with h5py.File(path, "r") as f:
         print(key, "shape =", f[key].shape if key in f else "(absent)")
 ```
 
-判定の目安:
+Rules of thumb:
 
-- `D_est` がある → **D4**
-- `Dtrn` / `Xrlt` / `currentstack` がある → **D2**
-- `Dstk` があり `dxdydt` が無い → **D1**（`ez.attrs["nx"]` を持つ）
-- `Dstk` と `elementsymbol` と `dxdydt` がある → **D3**（shape (1,3)。古い D3 には `dxdydt` が無い）
-- `dxdydt == [1, 1, 100]` → **D5** の可能性が高い（固定値なので grid には使えない）
+- `D_est` present → **D4**
+- `Dtrn` / `Xrlt` / `currentstack` present → **D2**
+- `Dstk` present and `dxdydt` absent → **D1** (carries `ez.attrs["nx"]`)
+- `Dstk`, `elementsymbol` and `dxdydt` present → **D3** (shape (1,3); older D3 files have
+  no `dxdydt`)
+- `dxdydt == [1, 1, 100]` → most likely **D5** (a fixed value, unusable as the grid)
