@@ -1,8 +1,8 @@
 """
-自動基板検出を使った深さプロファイル解析
+Depth-profile analysis with automatic substrate detection
 ========================================
-StructureAnalyzerの基板検出機能を使って、
-自動的にsubstrate_idxを設定し、Exponential Priorを生成する例。
+Uses the substrate detection of StructureAnalyzer to set substrate_idx
+automatically and to build the exponential prior.
 """
 
 import numpy as np
@@ -20,7 +20,7 @@ from deppro import (
 
 
 def create_3layer_profile(depth, d1=15.0, d2=45.0, sigma=3.0):
-    """3層膜プロファイル (Al2O3/SiO2/Si)"""
+    """Three-layer profile (Al2O3/SiO2/Si)"""
     n_depth = len(depth)
     D = np.zeros((n_depth, 4))
 
@@ -40,15 +40,15 @@ def create_3layer_profile(depth, d1=15.0, d2=45.0, sigma=3.0):
 
 def main():
     print("=" * 70)
-    print("自動基板検出を使った深さプロファイル解析")
+    print("Depth-profile analysis with automatic substrate detection")
     print("=" * 70)
 
-    # ========== 設定 ==========
+    # ========== Settings ==========
     depth = np.arange(0, 100, 2.0)
     angles = np.array([0, 30, 45, 60])
     photon_energy = 1486.6
 
-    # 元素定義（酸化状態を指定）
+    # Element definitions (with oxidation states)
     elements = [
         ElementConfig('Al', '2p', 'Al2O3', oxidation_state=3),
         ElementConfig('Si', '2p', 'SiO2', oxidation_state=4),
@@ -57,7 +57,7 @@ def main():
     ]
     element_labels = ['Al³⁺', 'Si⁴⁺', 'Si⁰', 'O²⁻']
 
-    # ========== 真のプロファイルと観測データ ==========
+    # ========== True profile and observed data ==========
     D_true = create_3layer_profile(depth)
 
     tm = TransferMatrix(depth=depth, step_size=2.0, angles=angles, photon_energy=photon_energy)
@@ -70,8 +70,8 @@ def main():
     I_obs = np.maximum(I_obs, 1e-6)
     I_obs = I_obs / I_obs.sum(axis=1, keepdims=True)
 
-    # ========== Step 1: 自動基板検出 ==========
-    print("\n>>> Step 1: 基板検出")
+    # ========== Step 1: automatic substrate detection ==========
+    print("\n>>> Step 1: substrate detection")
     print("-" * 50)
 
     analyzer = StructureAnalyzer()
@@ -84,27 +84,27 @@ def main():
     substrate_detection = result.substrate_detection
 
     if not substrate_detection.has_substrate:
-        print(f"\n⚠️ 基板検出失敗: {substrate_detection.fallback_reason}")
-        print("手動でsubstrate_idxを指定してください")
+        print(f"\n⚠️ Substrate detection failed: {substrate_detection.fallback_reason}")
+        print("Give substrate_idx by hand")
         return
 
-    # 検出された基板インデックスを使用
+    # Use the detected substrate index
     substrate_idx = substrate_detection.substrate_indices[0]
-    print(f"\n検出された基板: index={substrate_idx} ({element_labels[substrate_idx]})")
+    print(f"\nDetected substrate: index={substrate_idx} ({element_labels[substrate_idx]})")
 
-    # ========== Step 2: IMFPの計算 ==========
-    print("\n>>> Step 2: IMFP計算")
+    # ========== Step 2: IMFP ==========
+    print("\n>>> Step 2: IMFP")
     print("-" * 50)
 
-    # 基板元素のIMFPを計算 (Si)
+    # IMFP of the substrate element (Si)
     imfp_substrate = IMFP.tpp2m(
         KE=photon_energy - 99.5,  # Si 2p BE
         Nv=4, density=2.33, Aw=28.09, Eg=1.1
     )
-    print(f"IMFP(基板) = {imfp_substrate:.1f} Å")
+    print(f"IMFP(substrate) = {imfp_substrate:.1f} Å")
 
-    # ========== Step 3: Exponential Prior生成 ==========
-    print("\n>>> Step 3: Exponential Prior生成")
+    # ========== Step 3: exponential prior ==========
+    print("\n>>> Step 3: exponential prior")
     print("-" * 50)
 
     D_prior = create_exponential_prior(
@@ -113,33 +113,33 @@ def main():
         substrate_idx=substrate_idx,
         d_penetration=imfp_substrate
     )
-    print(f"Prior生成完了: substrate_idx={substrate_idx}, d_penetration={imfp_substrate:.1f} Å")
+    print(f"Prior built: substrate_idx={substrate_idx}, d_penetration={imfp_substrate:.1f} Å")
 
-    # ========== Step 4: FreeSolverで解析 ==========
-    print("\n>>> Step 4: FreeSolver実行")
+    # ========== Step 4: FreeSolver ==========
+    print("\n>>> Step 4: running FreeSolver")
     print("-" * 50)
 
     config = SolverConfig.recommended(alpha=0.0003)
     solver = FreeSolver(tm, config, D_prior, elements=elements)
     solve_result = solver.solve(I_obs, D_init=D_prior.copy(), verbose=True)
 
-    # ========== 結果評価 ==========
+    # ========== Evaluation ==========
     D_est = solve_result.D_opt
     rmse = np.sqrt(np.mean((D_est - D_true)**2))
 
     print("\n" + "=" * 70)
-    print("結果サマリー")
+    print("Summary")
     print("=" * 70)
     print(f"RMSE: {rmse:.4f}")
     print(f"chi²: {solve_result.chi2:.2e}")
     print()
-    print(f"{'元素':<10} {'真値(0Å)':>10} {'推定(0Å)':>10} {'誤差':>10}")
+    print(f"{'Element':<10} {'True(0Å)':>10} {'Est(0Å)':>10} {'Error':>10}")
     print("-" * 50)
     for i, name in enumerate(element_labels):
         error = D_est[0, i] - D_true[0, i]
         print(f"{name:<10} {D_true[0, i]:>10.3f} {D_est[0, i]:>10.3f} {error:>+10.3f}")
 
-    print("\n自動基板検出からFreeSolver解析まで、全自動で完了しました。")
+    print("\nCompleted fully automatically, from substrate detection to the FreeSolver analysis.")
 
 
 if __name__ == '__main__':
