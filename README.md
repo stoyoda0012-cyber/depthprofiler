@@ -59,12 +59,14 @@ impose different prior knowledge:
 
 `FreeSolver` and `SemiFreeSolver` take the regulariser as a setting
 (`SolverConfig.method`: unregularised least squares `LLS`, `L1`, `L2` or
-maximum entropy `MEM`). By default the prior that the penalty pulls
-towards also depends on the solver and the method: in `FreeSolver` it is
-near zero for `L1`/`LLS` and uniform for `L2`/`MEM`; in `SemiFreeSolver` it
-is near zero for every method, and the thickness is also pulled towards
-its starting value. To change only the penalty, pass the prior (`D_prior`)
-explicitly. `GenericLayerSolver` is unregularised. `StructureAnalyzer`
+maximum entropy `MEM`). `LLS` has no penalty. For the others, the prior
+that the penalty pulls towards depends by default on the solver and the
+method: in `FreeSolver` it is uniform for `L2`/`MEM` and near zero for
+`L1`, where it equals the lower bound, so under the sum-to-one constraint
+the default `L1` term is constant and does not favour sparse profiles; in
+`SemiFreeSolver` it is near zero, and the penalty also pulls the thickness
+weakly towards its starting value. To change only the penalty, pass the
+prior (`D_prior`) explicitly. `GenericLayerSolver` is unregularised. `StructureAnalyzer`
 suggests a solver from the intensities.
 
 To see what a choice does where the truth is known, the synthetic round
@@ -124,9 +126,13 @@ series of frames, every pixel is inverted independently:
   `deppro.app.contract.metrics` (`evaluate`, `thickness_half_crossing`)
   score reconstructions against a reference profile.
 
-There is no ready-made runner that sweeps settings and tabulates the
-result; the loop over conditions is a short script around these
-functions. Pixels are not coupled laterally, except through an optional
+For measured data there is no ready-made runner that sweeps
+preprocessing or solver settings and tabulates the result; the loop over
+conditions is a short script around these functions. For simulated
+stacks, a source checkout (not the installed package) has
+`python -m deppro.benchmarks.run_solver_landscape`, which runs the three
+solvers over noise, thickness, interface width and number of angles with
+one regulariser per run. Pixels are not coupled laterally, except through an optional
 prior rebuilt from neighbouring pixels' solutions between passes (the
 second pass of the streaming pipeline, `--mem-loops`, and
 `IterativeMEMSolver.solve_batch_with_neighbor`), so a map is a set of

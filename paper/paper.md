@@ -35,8 +35,7 @@ measurement geometry, so that the intensities are modelled as
 $I = T\,D$, and it inverts this model under physical constraints and a
 chosen regulariser. Three solvers impose different structural
 assumptions on the same forward model, and each pixel of a map or each
-frame of a time series is inverted independently, on the CPU or in
-batches on Apple-silicon GPUs.
+frame of a time series is inverted independently.
 
 # Statement of need
 
@@ -93,17 +92,18 @@ background of a single spectrum [@Tougaard1996]. Depth reconstruction,
 compositional constraints and automation are therefore all available in
 existing software.
 
-`deppro` is not intended to replace these programs; it addresses a
-different need. In the programs that invert ARXPS data, the model and
+`deppro` addresses a different need. In the programs that invert ARXPS data, the model and
 the objective are set by the program and reached through its own
 interface, and SESSA simulates spectra rather than inverting them. The re-analysis described above needs an
 inversion whose objective, constraints and parameterisation can be
 changed, several parameterisations on one forward model, per-pixel
 batch processing, and a direct connection to the preprocessing and the
-scoring metrics. We are not aware of an open-source ARXPS
-inversion package for constrained multi-element profiles to which these
-features could have been added, so `deppro` was built as a separate open
-package. Its forward model is simpler than that of SESSA or
+scoring metrics. The closest public tools we know of are a spreadsheet
+for Tikhonov-regularised ARXPS profiles from up to five angles and five
+components [@Murdoch2023] and PROPHESY, which inverts
+photon-energy-resolved XPS across liquid interfaces [@Ozon2023]; neither
+is a package to which these features could readily be added, so
+`deppro` was built as a separate open package. Its forward model is simpler than that of SESSA or
 QUASES-ARXPS: it uses straight-line attenuation and has no
 elastic-scattering term, so intensities simulated with SESSA could be
 used to test that approximation; this has not yet been done.
@@ -112,13 +112,11 @@ used to test that approximation; this has not yet been done.
 
 The forward model maps a discretised depth profile to angle-resolved
 intensities. It combines inelastic mean free paths (TPP-2M, with
-compound parameters from tabulated data, averaged over an assumed
-composition profile), the emission geometry, the photon energy and an
+compound parameters from tabulated data), the emission geometry, the photon energy and an
 optional non-dipole correction. It is computed for an assumed
 composition, uniform by default, held fixed within each optimisation,
 and can be rebuilt from the previous solution between outer passes. The physical tables come from the
-`toyomacro` package [@toyomacro031] unless the user names others, so
-that one reviewed copy serves both peak fitting and depth inversion.
+`toyomacro` package [@toyomacro031] unless the user names others.
 
 The three solvers differ in the prior knowledge they impose. They share
 the transfer matrix and the input arrays but not the intensity
@@ -129,10 +127,10 @@ account.
   element at every depth is a free variable, constrained to be
   non-negative and to sum to one at each depth (and optionally to be
   charge-neutral). What is assumed enters only through the regulariser
-  and its prior profile: by default the L1 term pulls towards a
-  near-zero prior and favours sparse profiles, and the L2 and
-  maximum-entropy terms pull towards a uniform prior; a user-supplied
-  prior replaces either.
+  and its prior profile: by default the L2 and maximum-entropy terms
+  pull towards a uniform prior, while the L1 prior equals the lower
+  bound, so under the sum-to-one constraint the L1 term is constant; a
+  user-supplied prior replaces either.
 - `SemiFreeSolver` assumes one buried substrate interface. The
   substrate elements share a single error-function step; its midpoint,
   reported as the film thickness, and the ratios between the substrate
@@ -143,9 +141,9 @@ account.
   typically anions, follow from charge balance, and elements declared as
   constant are fixed. The thickness is fitted together with the film
   composition, with the same choice of penalty as in `FreeSolver`; by
-  default the penalty is taken relative to a near-zero profile for every
-  method and also pulls the thickness weakly towards its starting value,
-  so the starting thickness is part of the assumption.
+  default the penalty is taken relative to a near-zero profile and, for
+  L1, L2 and maximum entropy, also pulls the thickness weakly towards its
+  starting value, so the starting thickness is part of the assumption.
 - `GenericLayerSolver` assumes a stack of layers of given stoichiometry
   with error-function interfaces. It fits the layer thicknesses and,
   optionally, the interface widths and the stoichiometry within bounds,
