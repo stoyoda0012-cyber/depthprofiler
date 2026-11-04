@@ -271,7 +271,7 @@ objective) are in §III.A of JVST A, doi:10.1116/6.0005585.
 from deppro import SemiFreeSolver, SemiFreeSolverConfig, SolverConfig
 
 config = SolverConfig(
-    method='L1',      # L1 regularization (sparsity)
+    method='L1',      # L1 regularization
     alpha=1.0,        # regularization strength (example value); adjust to the data and the noise
     max_iter=100,
 )
@@ -470,7 +470,7 @@ needs MEM.
 | Method | Character |
 |------|------|
 | `LLS` | no regularization (α unused) |
-| `L1` | sparse solutions (minimizes sum\|D − D_prior\|) |
+| `L1` | minimizes sum\|D − D_prior\|; in `FreeSolver` the default prior equals the lower bound, so under the sum-to-one constraint this term is constant and does not favor sparse profiles |
 | `L2` | smooth solutions |
 | `MEM` | maximum entropy; combined with the exponential prior |
 
