@@ -25,6 +25,9 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.23877024
     description: Version DOI for v0.1.0
+  - type: doi
+    value: 10.5281/zenodo.23967782
+    description: Version DOI for v0.2.0
 license: MIT
 repository-code: 'https://github.com/stoyoda0012-cyber/depthprofiler'
 abstract: >-
