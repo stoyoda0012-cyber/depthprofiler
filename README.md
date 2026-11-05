@@ -233,7 +233,7 @@ and what needs material requested from the authors.
 
 ## Status
 
-Version 0.1.0. The API may change before 1.0. Questions and bug reports go
+Version 0.2.0. The API may change before 1.0. Questions and bug reports go
 to the [issue tracker](https://github.com/stoyoda0012-cyber/depthprofiler/issues);
 see [`SUPPORT.md`](SUPPORT.md) for what to expect and
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to propose changes and run the
