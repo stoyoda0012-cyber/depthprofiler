@@ -184,7 +184,10 @@ JVST A では、論文ではなく寄託物の指標ファイルを寄託され�
 
 ## 状態
 
-版は 0.1.0。1.0 までは API が変わることがある。
+版は 0.1.0。1.0 までは API が変わることがある。質問や不具合の報告は
+[issue トラッカー](https://github.com/stoyoda0012-cyber/depthprofiler/issues)へ。
+対応の目安は [`SUPPORT.md`](../../SUPPORT.md)、変更の提案とテストの走らせ方は
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md)（いずれも英語）にある。
 
 ## 既知の制限
 

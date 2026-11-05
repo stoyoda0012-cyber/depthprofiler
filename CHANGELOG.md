@@ -8,6 +8,13 @@ citable DOI. Until 1.0 the API may change between minor versions.
 
 ## [Unreleased]
 
+### Added
+
+- `CONTRIBUTING.md` (reporting problems, proposing changes, development
+  setup, tests and acceptance gates, style, use of AI tools, governance) and
+  `SUPPORT.md` (where to ask, what is supported, expected response),
+  linked from the README.
+
 ## [0.1.0] - 2026-11-02
 
 First public release. Development before this release took place in a
