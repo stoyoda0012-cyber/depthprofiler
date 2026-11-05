@@ -158,7 +158,7 @@ from .simulate import (
 # Usage: from deppro.haxpes import HAXPESPipeline, FIX_IBW_INSTRUMENT, CALTIOSI_EXPERIMENT
 # See deppro/haxpes/__init__.py for full API
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 # =============================================================================

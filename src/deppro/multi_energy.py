@@ -42,7 +42,7 @@ from .transfer_matrix import TransferMatrix
 
 
 # =========================================================================
-# Photon source presets (from SESSAAnalyzer/database/bulk_7sources)
+# Photon source presets (from SESSAAnalyser/database/bulk_7sources)
 # =========================================================================
 
 # 7 typical X-ray sources spanning soft X-ray to HAXPES range
@@ -59,7 +59,7 @@ PHOTON_SOURCES = {
 # Curated presets for common experimental configurations
 ENERGY_PRESETS = {
     "7sources": {
-        "description": "All 7 X-ray sources (SESSAAnalyzer database)",
+        "description": "All 7 X-ray sources (SESSAAnalyser database)",
         "sources": list(PHOTON_SOURCES.keys()),
     },
     "lab": {

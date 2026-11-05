@@ -15,8 +15,8 @@ authors:
     affiliation: >-
       Office of Institutional Advancement and Communications,
       Kyoto University, Kyoto, Japan
-version: 0.1.0
-date-released: '2026-11-02'
+version: 0.2.0
+date-released: '2026-11-05'
 doi: 10.5281/zenodo.23877023
 identifiers:
   - type: doi
