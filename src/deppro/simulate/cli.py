@@ -112,6 +112,20 @@ def run_simulation(config: SimulationConfig, preset: ElementSystemPreset,
     verbose : bool
         Print progress messages.
     """
+    # A photon energy below the preset's minimum leaves some orbitals with a
+    # negative kinetic energy; TPP-2M then returns NaN IMFPs and the fused
+    # generation kernel fails with a bare ZeroDivisionError long after the
+    # cause. Refuse here, before any work, naming both numbers. (The CLI's
+    # main() raises the energy automatically with a warning; this library
+    # entry point does not change the caller's settings.)
+    if config.photon_energy < preset.min_photon_energy:
+        raise ValueError(
+            f"photon_energy={config.photon_energy:g} eV is below the minimum "
+            f"{preset.min_photon_energy:g} eV that preset {preset.name!r} needs "
+            f"(every orbital must have a positive kinetic energy). Set "
+            f"SimulationConfig(photon_energy=...) to at least that value."
+        )
+
     depth = np.arange(0, config.depth_end + config.step_size, config.step_size)
     n_depth = len(depth)
     n_angles = len(config.angles)

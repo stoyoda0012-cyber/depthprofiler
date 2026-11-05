@@ -592,6 +592,27 @@ class RandomProfileSampler:
 
         # Pre-compute constant arrays
         lb_c = np.ascontiguousarray(lambda_basic, dtype=np.float64)
+        # The compiled kernel divides by these IMFPs. NaN (an orbital whose
+        # binding energy exceeds the photon energy) or a non-positive value
+        # does not propagate as NaN there but ends in a bare ZeroDivisionError
+        # with no hint of the cause, so refuse the matrix here by name.
+        if lb_c.shape != (n_elem, n_elem):
+            raise ValueError(
+                f"lambda_basic must have shape ({n_elem}, {n_elem}); got {lb_c.shape}"
+            )
+        bad = ~(np.isfinite(lb_c) & (lb_c > 0.0))
+        if bad.any():
+            elems = self.preset.elements
+            rows = sorted({int(i) for i in np.nonzero(bad)[0]})
+            names = ", ".join(f"{elems[i].symbol} {elems[i].orbital}" for i in rows)
+            raise ValueError(
+                f"lambda_basic has non-finite or non-positive IMFPs for the emitting "
+                f"element(s) {names} ({int(bad.sum())} of {bad.size} entries). This is "
+                f"what TransferMatrix.calculate_lambda_basic returns when the photon "
+                f"energy is below an orbital's binding energy; use a photon energy of "
+                f"at least preset.min_photon_energy "
+                f"({self.preset.min_photon_energy:g} eV for {self.preset.name!r})."
+            )
         angles_rad = np.deg2rad(np.asarray(angles, dtype=np.float64))
         _sqrt_ln2 = self._sqrt_ln2
 

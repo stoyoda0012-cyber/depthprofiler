@@ -8,6 +8,19 @@ citable DOI. Until 1.0 the API may change between minor versions.
 
 ## [Unreleased]
 
+### Fixed
+
+- `deppro.simulate.run_simulation` failed with a bare `ZeroDivisionError`
+  from the compiled generation kernel when the configured photon energy was
+  below the preset's `min_photon_energy` (the default 1486.6 eV with the
+  1s-orbital presets): the kinetic energies turned negative, TPP-2M returned
+  NaN IMFPs, and nothing checked them. It now raises a `ValueError` naming
+  the photon energy and the preset's minimum before any work, and
+  `RandomProfileSampler.generate_batch` refuses a `lambda_basic` with
+  non-finite or non-positive entries, naming the emitting elements. The CLI
+  (`python -m deppro.simulate`), which already raised the energy
+  automatically with a warning, is unchanged.
+
 ## [0.2.0] - 2026-11-05
 
 ### Added
