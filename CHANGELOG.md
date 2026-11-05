@@ -21,6 +21,115 @@ citable DOI. Until 1.0 the API may change between minor versions.
   (`python -m deppro.simulate`), which already raised the energy
   automatically with a warning, is unchanged.
 
+## [0.2.0] - 2026-11-05
+
+### Added
+
+- **Ground truth beside a reconstruction.** `deppro.tools.gt_vs_recon`
+  (`python -m deppro.tools.gt_vs_recon --gt GT.h5 --recon EST.h5`, or
+  `render_gt_vs_recon` from Python) draws a 2x2 figure. The top row holds
+  the 3D isosurfaces of the ground truth and of the reconstruction, from the
+  same view, with the same crop and element colors (the view and crop
+  conventions of `deppro.tools.triptych`). The bottom row holds their
+  (x, y)-averaged depth profiles. A heading gives the frame's RMSE (%, over
+  all pixels, depths and elements) and W1 (Å, the median over pixels,
+  averaged over elements). `load_profile` reads either `/D_est/data` or
+  `/Dstk` files. `check_compatible` refuses a pair whose grid, depth axis or
+  element order differ, and it lists every difference. One frame gives a
+  PNG. Several frames give an MP4 and a poster PNG. A relative output path
+  goes under `gt_vs_recon/` in the outputs directory (`DEPPRO_OUTPUTS`, else
+  `outputs/` in a checkout or in the current directory).
+  `--no-depth-peeling` keeps panels from coming out blank under software
+  OpenGL. Rendering needs pyvista and imageio (imageio-ffmpeg for video).
+  No extra installs them. The metrics and checks run without them.
+- **Citation metadata for the archive.** `CITATION.cff` carries the Zenodo
+  concept DOI (10.5281/zenodo.23877023) and the v0.1.0 version DOI
+  (10.5281/zenodo.23877024). The README has a DOI badge and a citation
+  section that asks you to cite the version DOI of the release you used.
+- `CONTRIBUTING.md` (reporting problems, proposing changes, development
+  setup, tests and acceptance gates, style, use of AI tools, governance) and
+  `SUPPORT.md` (where to ask, what is supported, expected response),
+  linked from the README.
+- **English-only check.** A repository test fails if a shipped module,
+  `README.md`, `CITATION.cff`, `CHANGELOG.md`, `pyproject.toml` or a
+  Markdown file under `docs/` contains kana or kanji. `docs/ja/` is exempt
+  because it holds the Japanese translations. The test does not scan
+  `CONTRIBUTING.md`, `SUPPORT.md`, `paper/` or the READMEs inside
+  `src/deppro/`, and it does not match full-width CJK punctuation.
+
+### Changed
+
+- **Documentation is in English.** The README is English only. The
+  Japanese README is now at `docs/ja/README.md`, and the English one is
+  authoritative. `docs/api_reference.md`, `docs/data_format.md` and
+  `docs/environment_variables.md` are translated. One file is still in
+  Japanese: `src/deppro/examples/theory/README.md`. Comments, docstrings
+  and most documents now use American spelling. Identifiers keep their
+  spelling (`default_colours`, `_forward_normalised`, `analyser_mode` and
+  others). The README and the JOSS paper still have some British spellings.
+- **Messages, printed text and CLI help are in English.** This covers
+  every shipped module. Function, class and argument names and CLI options
+  did not change. The strings that changed are:
+  - exception messages (`ValueError`, `RuntimeError`, `NotImplementedError`,
+    `GenerationError`, `MatlabGenerationError`, `ManifestRejected`,
+    `UnsupportedLayout`);
+  - the warnings and suggestions that `StructureAnalyzer` and
+    `ARXPSPipeline` return;
+  - the names and messages of the physics checks (`composition sum`,
+    `non-negativity`, `substrate convergence`);
+  - the verdicts and notes from `deppro.producer.gui_check`;
+  - the verbose output of `GenericLayerSolver`;
+  - the log lines of `deppro.app.pipeline_bridge` (`bridge A:` … `bridge D:`);
+  - the test-case descriptions in `deppro.benchmark`;
+  - the printed output and plot labels of the examples, and the printed
+    output of `deppro.io.H5Writer`;
+  - the free-text `note` and `role` fields that the producer writes to
+    `manifest.json`;
+  - the `--help` text of `deppro.tools.triptych`.
+
+  If your code matches the old Japanese text or a physics-check `name`,
+  update it.
+- **README and JOSS paper.**
+  - Both say who the package is for, what goes in and what comes out.
+  - The README has a new section, "What you can do with it". It includes a
+    list of what has been done with the package, what the current code can
+    do but has not been published, and what is still to be verified.
+  - The README's note that there is no ready-made runner now refers to
+    measured data only. It also points to
+    `python -m deppro.benchmarks.run_solver_landscape` for simulated stacks,
+    which needs a source checkout.
+  - The paper adds a state-of-the-field comparison with instrument MEM
+    software, QUASES-ARXPS and SESSA. It also cites Murdoch & McCulloch
+    (2023) and PROPHESY. It now has the SIA volume, issue and pages
+    (58(12), 1112–1128).
+  - Two corrections, also made in `docs/api_reference.md`:
+    - In `FreeSolver`, the default L1 prior equals the lower bound. Under
+      the sum-to-one constraint the L1 term is then constant, so it does
+      not favor sparse profiles.
+    - In `SemiFreeSolver`, only L1, L2 and MEM pull the thickness toward
+      its starting value. LLS has no penalty.
+
+### Fixed
+
+- **`deppro.visualize_4d.load_gt_4d` can read files from
+  `deppro.simulate.writer.H5Writer`.** Before this fix it failed with
+  `KeyError` on every such file. `H5Writer.finalize` now writes
+  `ezdeprof/element`, the element names with charges (`'Si(+4)'`). It also
+  writes `ezdeprof/dxdydt` as `[[nx, ny, nt]]` (shape (1, 3), float64), the
+  layout that `deppro.app.write_depth_estimate` uses. `finalize` takes two
+  new optional arguments, `nx` and `ny`. Pass both or neither; passing only
+  one raises `ValueError`. With neither, the file records the samples as one
+  row, `[[n_pixels, 1, 1]]`. If `n_pixels` is not a multiple of `nx * ny`,
+  `finalize` raises `ValueError` before it writes anything. Files written by
+  earlier versions still lack both datasets. `docs/data_format.md` (dialect
+  D3, §4.2 and the §6 dialect test) now describes the new layout.
+
+### Known limitations
+
+- The limitations of 0.1.0 about `SemiFreeSolverConfig(gradient_mode=True)`,
+  the semi-free MLX acceptance test and the Anscombe acceptance tests still
+  apply.
+
 ## [0.1.0] - 2026-11-02
 
 First public release. Development before this release took place in a
