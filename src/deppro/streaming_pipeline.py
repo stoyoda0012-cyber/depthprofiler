@@ -368,7 +368,10 @@ class StreamingDepthPipeline:
                 success_chunk = 0
 
                 for res in pool.imap_unordered(worker_phase1, args_list):
-                    idx, D_opt, thk, abrp, chi2, suc, warm, nit = res
+                    # worker_phase1 returns 9 values (chi2 and objective are
+                    # separate); the 8-name unpacking used until 2026-11-07
+                    # raised ValueError on the first pixel.
+                    idx, D_opt, thk, abrp, chi2, obj, suc, warm, nit = res
                     if D_opt is not None:
                         D_opt_chunk[idx] = D_opt
                         Q_chunk[idx] = [chi2, thk, abrp]

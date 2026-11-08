@@ -55,9 +55,10 @@ def worker_phase1(args):
              semi_config_base_dict[, l1_smoothing, l1_beta])
 
     Returns:
-        Tuple of (local_idx, D_opt, thickness, abruptness, chi2, success,
-                  warm_restarts, n_iters).
-        On failure: (local_idx, None, 0.0, abruptness_init, 0.0, False, 0, 0).
+        Tuple of (local_idx, D_opt, thickness, abruptness, chi2, objective,
+                  success, warm_restarts, n_iters) -- nine values.
+        On failure: (local_idx, None, 0.0, abruptness_init, 0.0, 0.0, False,
+                     0, 0).
     """
     # Support both old (17-element) and new (19-element) arg tuples
     if len(args) >= 19:
