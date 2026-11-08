@@ -409,6 +409,9 @@ class H5Writer:
                 be_list.append(e.binding_energy if e.binding_energy else 0.0)
             ez.create_dataset('BindingEnergy', data=np.array(
                 be_list, dtype=np.float64).reshape(1, -1))
+            # MATLAB-dialect name read by streaming_io.StreamingDepthReader
+            # (the capitalized key above is kept for files that already use it).
+            ez.create_dataset('bindingenergy', data=ez['BindingEnergy'][()])
 
         self._D_batches.clear()
         self._X_batches.clear()

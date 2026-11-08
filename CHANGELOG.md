@@ -15,6 +15,27 @@ citable DOI. Until 1.0 the API may change between minor versions.
   `SUPPORT.md` (where to ask, what is supported, expected response),
   linked from the README.
 
+### Fixed
+
+- `python -m deppro.streaming_pipeline` failed on its first pixel: Phase 1
+  unpacked eight values from `solver_workers.worker_phase1`, which returns
+  nine (chi2 and objective are separate). The worker's docstring said eight.
+  An end-to-end Phase 1 test on a 2 × 2 synthetic map was added
+  (`tests/integration/test_streaming_pipeline_phase1.py`).
+- `deppro.simulate.H5Writer` wrote the binding energies only as
+  `ezdeprof/BindingEnergy`; `streaming_io.StreamingDepthReader` (and the
+  MATLAB dialect) read `ezdeprof/bindingenergy`. The writer now writes both,
+  so a simulated map can be fed to the streaming pipeline.
+- `GenericLayerSolver._build_profile` reset the linked-element column after
+  the substrate had been added, so a substrate that contains the linked
+  element (an oxide substrate with `linked_element_index` = O) lost its share
+  of it and came out as the cation alone.
+- `VectorizedBatchSolver._gradient_batch` returned the gradient of the
+  unnormalised least squares while the residual and the reported chi2 use
+  per-angle-normalised intensities; it now takes the normalisation Jacobian
+  into account, as `FreeSolver._gradient` does (`check_grad` relative error
+  ~80 % before, < 1e-4 after; `tests/solver/test_vectorized_batch_gradient.py`).
+
 ## [0.1.0] - 2026-11-02
 
 First public release. Development before this release took place in a

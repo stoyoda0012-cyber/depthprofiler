@@ -1405,8 +1405,11 @@ class VectorizedBatchSolver:
             # Residual
             residual = I_pred_norm - I_norm  # (n_pixels, n_angles, n_elements)
 
-            # Gradient
-            grad = self._gradient_batch(D, residual, degree, alpha)
+            # Gradient (through the per-angle normalization, as in
+            # FreeSolver._gradient)
+            grad = self._gradient_batch(D, residual, degree, alpha,
+                                        I_pred_norm=I_pred_norm,
+                                        I_pred_sum=I_pred_sum)
 
             # Compute step using gradient descent
             # (For Gauss-Newton, we would compute Hessian, but gradient descent is simpler)
@@ -1457,15 +1460,28 @@ class VectorizedBatchSolver:
         residual: np.ndarray,
         degree: float,
         alpha: float,
+        I_pred_norm: Optional[np.ndarray] = None,
+        I_pred_sum: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Vectorized gradient computation.
 
         Args:
             D: Current profiles (n_pixels, n_depth, n_elements)
-            residual: I_pred - I_obs (n_pixels, n_angles, n_elements)
+            residual: I_pred_norm - I_obs_norm (n_pixels, n_angles, n_elements)
             degree: Data fit weight
             alpha: Regularization weight
+            I_pred_norm: Per-angle-normalized prediction I_pred/S
+                (n_pixels, n_angles, n_elements), S[p, a] = sum_e I_pred[p, a, e]
+            I_pred_sum: S (n_pixels, n_angles, 1)
+
+        When ``I_pred_norm`` and ``I_pred_sum`` are given, the data-term
+        gradient is taken through the per-angle normalization, exactly as in
+        :meth:`FreeSolver._gradient`:
+        d/dI_pred[a,e'] = degree * (r[a,e'] - sum_e r[a,e] * I_norm[a,e]) / S[a].
+        Without them (the behavior until 2026-11-07) the gradient is
+        ``degree * residual @ T``, which is the gradient of the unnormalized
+        least squares, not of the chi2 that ``solve_batch`` reports.
 
         Returns:
             grad: Gradient (n_pixels, n_depth, n_elements)
@@ -1476,9 +1492,15 @@ class VectorizedBatchSolver:
         # residual: (n_pixels, n_angles, n_elem)
         # T: (n_elem, n_angles, n_depth)
         # grad_data: (n_pixels, n_depth, n_elem)
+        if I_pred_norm is not None and I_pred_sum is not None:
+            I_sum_clip = np.maximum(I_pred_sum, 1e-10)
+            proj = (residual * I_pred_norm).sum(axis=2, keepdims=True)
+            dchi2_dI = degree * (residual - proj * (I_pred_sum > 1e-10)) / I_sum_clip
+        else:
+            dchi2_dI = degree * residual
         grad_data = np.zeros_like(D)
         for e in range(self.n_elements):
-            grad_data[:, :, e] = degree * residual[:, :, e] @ self.T[e]
+            grad_data[:, :, e] = dchi2_dI[:, :, e] @ self.T[e]
 
         # Regularization gradient
         if self.config.method == 'L2':
@@ -4612,15 +4634,23 @@ class GenericLayerSolver:
         substrate_profile = 0.5 * (1 + erf((z - z_sub) / sigma_sub))
 
         total_stoich = sum(cfg.substrate.stoichiometry.values())
+        substrate_linked = np.zeros(len(z))
         for elem_idx, stoich in cfg.substrate.stoichiometry.items():
-            D[:, elem_idx] += (stoich / total_stoich) * substrate_profile
+            contribution = (stoich / total_stoich) * substrate_profile
+            D[:, elem_idx] += contribution
+            if elem_idx == cfg.linked_element_index:
+                substrate_linked = contribution
 
         # Linked elements (charge conservation)
         if cfg.linked_element_index is not None:
             linked_idx = cfg.linked_element_index
 
-            # Simplified: linked = sum(layer_profiles * linked_stoich / total_stoich)
-            D[:, linked_idx] = 0
+            # linked = substrate contribution (if the substrate contains the
+            # linked element, e.g. an oxide substrate) + sum over layers of
+            # layer_profile * linked_stoich / total_stoich. Until 2026-11-07
+            # the column was reset to zero here, which discarded the
+            # substrate's share.
+            D[:, linked_idx] = substrate_linked
             for i, layer in enumerate(cfg.layers):
                 stoich = layer_stoichiometries[i]
                 if linked_idx in stoich:

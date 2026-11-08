@@ -249,3 +249,36 @@ def run_all_tests():
 
 if __name__ == "__main__":
     run_all_tests()
+
+
+def test_substrate_linked_element_is_kept():
+    """A substrate that contains the linked element (an oxide substrate) keeps
+    its share of that element.
+
+    Until 2026-11-07 ``_build_profile`` reset the linked column to zero after
+    the substrate had been added, so an SiO2 substrate came out as pure Si.
+    """
+    from deppro.inverse_solver import (
+        GenericLayerConfig, GenericLayerSolver, LayerDefinition, SolverConfig,
+    )
+    from deppro.transfer_matrix import TransferMatrix
+
+    depth = np.arange(0, 200, 1.0)
+    tm = TransferMatrix(depth=depth, step_size=1.0, angles=[0, 15, 30, 45, 60],
+                        photon_energy=1486.6)
+    tm.n_elements = 3  # Al, O, Si
+    cfg = GenericLayerConfig(
+        layers=[LayerDefinition('Al2O3', [0, 1], {0: 2, 1: 3})],
+        substrate=LayerDefinition('SiO2', [2, 1], {2: 1, 1: 2}),
+        initial_thicknesses=[20.0], initial_widths=[5.0],
+        linked_element_index=1,
+    )
+    solver = GenericLayerSolver(tm, SolverConfig(method='LLS'), cfg)
+    D = solver._build_profile(np.array([20.0]), np.array([5.0]))
+
+    # Deep in the substrate: Si:O = 1:2
+    np.testing.assert_allclose(D[150], [0.0, 2 / 3, 1 / 3], atol=1e-3)
+    # At the surface: Al:O = 2:3
+    np.testing.assert_allclose(D[2], [0.4, 0.6, 0.0], atol=1e-3)
+    # Rows stay normalized
+    np.testing.assert_allclose(D.sum(axis=1), 1.0, atol=1e-6)
