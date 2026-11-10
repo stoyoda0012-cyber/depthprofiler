@@ -20,6 +20,18 @@ citable DOI. Until 1.0 the API may change between minor versions.
   non-finite or non-positive entries, naming the emitting elements. The CLI
   (`python -m deppro.simulate`), which already raised the energy
   automatically with a warning, is unchanged.
+- `deppro solve --loops N` decayed the wrong term. Each loop after the first
+  multiplied `alpha` by 0.8, which weakens the regularization, while the
+  MATLAB original (`degree = degree*0.8` in `Run_DepthProfiling.m`),
+  `FreeSolver.solve`, the streaming pipeline and the MLX batch solver all
+  multiply the data weight `degree` by `degree_decay`, which strengthens it
+  relative to the data term (`0.5*degree*chi2 + alpha*R`). The CLI now
+  decays `degree` by `SolverConfig.degree_decay` (0.8) and keeps `alpha`
+  fixed. **Results of `deppro solve` with `--loops` greater than 1 change;**
+  a single loop (the default) is unaffected. The loop also rebuilt
+  `SolverConfig` from a fixed list of fields, so any other field would have
+  fallen back to its default from loop 2 on; it now carries every field
+  over. `result.json` records `n_loops`, `degree_decay` and `degree_final`.
 
 ## [0.2.0] - 2026-11-05
 

@@ -246,6 +246,56 @@ def cmd_plot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _solve_semifree_loops(tm, elements, intensities, solver_config,
+                          semi_free_config, n_loops, verbose=False,
+                          solver_cls=None):
+    """Run the SemiFreeSolver for ``n_loops`` loops, MATLAB GUI style.
+
+    Before every loop after the first, the transfer matrix is rebuilt from
+    the current D_opt and the data weight is decayed,
+    ``degree <- degree * degree_decay``, while alpha stays fixed. The
+    objective is ``0.5 * degree * chi2 + alpha * R``, so this makes the
+    regularization relatively stronger loop by loop. This matches the
+    MATLAB original (Run_DepthProfiling.m: ``degree = degree*0.8`` when
+    DegreeControl is on and currentloop > 1) and FreeSolver.solve. Set
+    ``solver_config.degree_decay = 1.0`` to keep the weights fixed.
+
+    The config for each loop is derived with ``dataclasses.replace`` so that
+    every other SolverConfig field (min_conc/max_conc, mem_space, weighting
+    options, ...) carries over unchanged.
+
+    Returns ``(result, final_solver_config)``.
+    """
+    import dataclasses
+
+    if solver_cls is None:
+        from .inverse_solver import SemiFreeSolver as solver_cls
+
+    result = None
+    for loop_i in range(max(1, int(n_loops))):
+        if loop_i > 0:
+            print(f"\n--- Loop {loop_i + 1}/{n_loops}: rebuilding transfer matrix ---")
+            tm.compute(result.D_opt, elements)
+            solver_config = dataclasses.replace(
+                solver_config,
+                degree=solver_config.degree * solver_config.degree_decay,
+            )
+            print(f"  Degree: {solver_config.degree:.4g} (alpha={solver_config.alpha:.4g})")
+
+        solver = solver_cls(
+            transfer_matrix=tm,
+            config=solver_config,
+            semi_free_config=semi_free_config,
+            D_prior=None,  # Zero prior for L1 sparsity
+            elements=elements,
+            use_numba=True,
+        )
+        result = solver.solve(intensities, verbose=verbose)
+        print(f"  Loop {loop_i + 1}: thickness={result.thickness:.2f} Å, chi²={result.chi2:.4f}")
+
+    return result, solver_config
+
+
 def cmd_solve(args: argparse.Namespace) -> int:
     """Solve inverse problem: intensity data -> depth profile.
 
@@ -418,45 +468,15 @@ def cmd_solve(args: argparse.Namespace) -> int:
     print(f"Initial thickness: {thickness_init:.1f} Å")
     print(f"Free: {config.model.free_indices}, Linked: {config.model.linked_indices}, Substrate: {config.model.substrate_indices}")
 
-    # Solve (multi-loop: rebuild transfer matrix + decay alpha, like MATLAB GUI)
+    # Solve (multi-loop: rebuild transfer matrix + decay degree, like MATLAB GUI)
     n_loops = getattr(args, 'loops', 1)
-    alpha_current = config.model.regularization_alpha
-    alpha_decay = 0.8  # MATLAB uses degree = degree * 0.8 per loop
+    print(f"\nOptimizing ({n_loops} loop(s), alpha={solver_config.alpha}, "
+          f"degree={solver_config.degree}, degree_decay={solver_config.degree_decay})...")
 
-    print(f"\nOptimizing ({n_loops} loop(s), alpha={alpha_current}, decay={alpha_decay})...")
-
-    result = None
-    for loop_i in range(n_loops):
-        if loop_i > 0:
-            # Rebuild transfer matrix from current D_opt
-            print(f"\n--- Loop {loop_i + 1}/{n_loops}: rebuilding transfer matrix ---")
-            tm.compute(result.D_opt, elements)
-
-            # Decay alpha
-            alpha_current *= alpha_decay
-            solver_config = SolverConfig(
-                method=solver_config.method,
-                alpha=alpha_current,
-                max_iter=solver_config.max_iter,
-                tol=solver_config.tol,
-                scipy_method=solver_config.scipy_method,
-                use_xreg_weighting=solver_config.use_xreg_weighting,
-                use_sum_constraint=solver_config.use_sum_constraint,
-                use_charge_constraint=solver_config.use_charge_constraint,
-            )
-            print(f"  Alpha: {alpha_current:.4f}")
-
-        solver = SemiFreeSolver(
-            transfer_matrix=tm,
-            config=solver_config,
-            semi_free_config=semi_free_config,
-            D_prior=None,  # Zero prior for L1 sparsity
-            elements=elements,
-            use_numba=True,
-        )
-
-        result = solver.solve(intensity_data.intensities, verbose=config.verbose)
-        print(f"  Loop {loop_i + 1}: thickness={result.thickness:.2f} Å, chi²={result.chi2:.4f}")
+    result, solver_config = _solve_semifree_loops(
+        tm, elements, intensity_data.intensities, solver_config,
+        semi_free_config, n_loops, verbose=config.verbose,
+    )
 
     # Results
     print("\n" + "=" * 60)
@@ -490,6 +510,9 @@ def cmd_solve(args: argparse.Namespace) -> int:
             'solver': 'SemiFreeSolver',
             'method': config.model.regularization_method,
             'alpha': config.model.regularization_alpha,
+            'n_loops': n_loops,
+            'degree_decay': solver_config.degree_decay,
+            'degree_final': solver_config.degree,
         }
         with open(json_path, 'w') as f:
             json.dump(result_dict, f, indent=2)
@@ -954,7 +977,9 @@ Examples:
     solve_parser.add_argument('--loops', '-l', type=int, default=1,
                              help='Number of optimization loops (default: 1). '
                                   'Each loop rebuilds transfer matrix from current D_opt '
-                                  'and decays alpha by 0.8x (like MATLAB GUI).')
+                                  'and multiplies the data weight (degree) by 0.8, so '
+                                  'regularization gets relatively stronger, as in the '
+                                  'MATLAB GUI. alpha stays fixed.')
     solve_parser.set_defaults(func=cmd_solve)
 
     # Init-config command
