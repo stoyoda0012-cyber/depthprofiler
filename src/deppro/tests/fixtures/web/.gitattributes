@@ -1,0 +1,2 @@
+# Fixture bytes are hashed (index.json): never convert line endings.
+*.json -text
