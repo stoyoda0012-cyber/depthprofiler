@@ -8,6 +8,18 @@ citable DOI. Until 1.0 the API may change between minor versions.
 
 ## [Unreleased]
 
+### Added
+
+- **Web fixtures for ports of the single-point inversion.**
+  `src/deppro/tests/fixtures/web/` holds twelve cases (a film on a
+  substrate, synthetic intensities or Poisson counts, inverted by
+  `SemiFreeSolver.solve_alternating`) with deppro's NumPy-path results, for
+  a port to another runtime such as Pyodide to check itself against. They
+  are written by `python -m deppro.tests.web_fixtures --write` and are not
+  part of the package. For contributors: `test_web_fixtures.py` fails when
+  the forward model or the solver source changes, until the fixtures are
+  regenerated and their diff reviewed.
+
 ### Fixed
 
 - `deppro.simulate.run_simulation` failed with a bare `ZeroDivisionError`
