@@ -10,6 +10,17 @@ citable DOI. Until 1.0 the API may change between minor versions.
 
 ### Added
 
+- **An example that takes a folder of HAXPES-Lab `.pxt` files to a depth
+  profile.** `python -m deppro.examples.haxpes_lab_depth_profile DATA_DIR
+  --polar 30` sums the frames of an SES Fixed-mode, Angular56 measurement
+  (angle slices pre-binned by SES), integrates the peak areas, and runs
+  `SemiFreeSolver`; the sample (regions, compounds, roles, optional cross
+  sections) is described in a YAML file (`haxpes_lab_sample.yaml`).
+  `--inspect` lists the regions in the files and flags unreadable ones. The
+  fitted thickness depends on the starting value and on the depth step, so
+  the example solves from the nominal thickness and also prints the result
+  for other starts. Checked on one data set only (C/Al2O3/TiO2/Si).
+  A Japanese walk-through is in `docs/ja/HAXPES_LAB_QUICKSTART.md`.
 - **Web fixtures for ports of the single-point inversion.**
   `src/deppro/tests/fixtures/web/` holds twelve cases (a film on a
   substrate, synthetic intensities or Poisson counts, inverted by

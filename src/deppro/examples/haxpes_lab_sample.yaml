@@ -1,0 +1,29 @@
+# Sample description for deppro.examples.haxpes_lab_depth_profile
+#
+# Copy this file next to your data and edit it. One entry per measured region.
+#
+#   region            Region name exactly as written by SES ("Region Name=" in the file)
+#   symbol, orbital   Element and core level of that region
+#   compound          Compound the element sits in; used for the inelastic mean free
+#                     path. The name must exist in the compound table.
+#   binding_energy    eV
+#   oxidation_state   Formal charge in that compound (0 for an element or a substrate)
+#   role              substrate : below the buried interface (exactly the bulk)
+#                     free      : film element whose concentration is fitted at each depth
+#                     linked    : film element fixed by charge balance against the
+#                                 free elements (the anion, usually O)
+#   sigma             Optional. Photoionization cross section at your photon energy,
+#                     the same unit for every element that has one. Without it the
+#                     script uses the package's Yeh-Lindau extrapolation, which covers
+#                     1s levels up to Ti only.
+#
+# The values below are the C / Al2O3 / TiO2 / Si stack of the JVST A and SIA papers.
+
+name: C_AlOx_TiOx_Si
+
+elements:
+  - {region: "Si 1s", symbol: Si, orbital: 1s, compound: Si,    binding_energy: 1839.0, oxidation_state: 0,  role: substrate}
+  - {region: "Ti 1s", symbol: Ti, orbital: 1s, compound: TiO2,  binding_energy: 4969.0, oxidation_state: 4,  role: free}
+  - {region: "Al 1s", symbol: Al, orbital: 1s, compound: Al2O3, binding_energy: 1562.0, oxidation_state: 3,  role: free}
+  - {region: "C 1s",  symbol: C,  orbital: 1s, compound: C,     binding_energy: 285.0,  oxidation_state: 0,  role: free}
+  - {region: "O 1s",  symbol: O,  orbital: 1s, compound: Al2O3, binding_energy: 531.0,  oxidation_state: -2, role: linked}
