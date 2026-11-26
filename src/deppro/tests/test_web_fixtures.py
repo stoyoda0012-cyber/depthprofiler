@@ -93,6 +93,25 @@ def test_cases_are_synthetic_or_counts_and_say_where_inputs_come_from(case):
     assert len(data["expected"]["D_fit"]) == data["input"]["depth"]["n_points"]
 
 
+def test_layered_cases_state_layers_that_sum_to_the_thickness():
+    # A layered film replaces film_fractions by layers; the thickness that
+    # places the substrate is their sum, and every layer is a full composition.
+    layered = [c for c in CASES if "layers" in _load(c)["input"]["data"]]
+    assert layered, "no layered case"
+    for case in layered:
+        data = _load(case)["input"]["data"]
+        assert "film_fractions" not in data
+        assert data["thickness_A"] == sum(layer["thickness_A"] for layer in data["layers"])
+        n_film = sum(e["role"] != "substrate" for e in _load(case)["input"]["elements"])
+        step = _load(case)["input"]["depth"]["step_A"]
+        edge = 0.0
+        for layer in data["layers"]:
+            assert len(layer["film_fractions"]) == n_film
+            assert abs(sum(layer["film_fractions"]) - 1.0) < 1e-12
+            edge += layer["thickness_A"]
+            assert edge % step == 0, f"{case}: the boundary at {edge} A is off the {step} A grid"
+
+
 def test_the_fully_matched_case_recovers_the_generating_thickness():
     # Same angular factor, same depth grid and lambda from the generating
     # composition: what is left is where the Brent search over thickness stops

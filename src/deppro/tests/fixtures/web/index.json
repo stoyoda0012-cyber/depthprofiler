@@ -63,6 +63,21 @@
    "case": "alka_sio2_unpolarized",
    "file": "alka_sio2_unpolarized.json",
    "sha256": "25ec134edf0646e3719bb3ab8b14c4cc3bfb95014cf3765d34728cd7c8a5de57"
+  },
+  {
+   "case": "gaka_c_al2o3_tio2_layered",
+   "file": "gaka_c_al2o3_tio2_layered.json",
+   "sha256": "5fe6eb1a2e1daa62810fd63b45c91f8d1aa55f34c281737cdd56f3156c8499d2"
+  },
+  {
+   "case": "gaka_hfo2_sio2_layered",
+   "file": "gaka_hfo2_sio2_layered.json",
+   "sha256": "025a58fc02a0dd8db81073f29ded0cf4affed83f560d73cf57ad7992377e0ab2"
+  },
+  {
+   "case": "alka_hfo2_sio2_layered",
+   "file": "alka_hfo2_sio2_layered.json",
+   "sha256": "efb2f2977584e15028ddaa42000b358b9bc44d450de32a902260bf0de5975331"
   }
  ]
 }

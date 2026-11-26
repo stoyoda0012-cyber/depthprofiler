@@ -10,6 +10,13 @@ citable DOI. Until 1.0 the API may change between minor versions.
 
 ### Added
 
+- **Web fixtures for layered films.** A synthetic case in
+  `src/deppro/tests/fixtures/web/` can now give `layers` (thickness and film
+  fractions, from the surface down) instead of one `film_fractions`; the
+  procedure is documented in `web_fixtures.py`. Three cases use it: C / Al2O3
+  / TiO2 / Si and HfO2 / SiO2 / Si at Ga K-alpha, and a thin HfO2 / SiO2 / Si
+  at Al K-alpha. The twelve existing fixture files are unchanged.
+
 - **An example that takes a folder of HAXPES-Lab `.pxt` files to a depth
   profile.** `python -m deppro.examples.haxpes_lab_depth_profile DATA_DIR
   --polar 30` sums the frames of an SES Fixed-mode, Angular56 measurement
