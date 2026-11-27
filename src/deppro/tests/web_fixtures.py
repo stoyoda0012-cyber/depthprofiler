@@ -26,7 +26,16 @@ must follow to reproduce the numbers, is:
      ``build_substrate_profile(z, t, fwhm, substrate_fractions)`` (NumPy
      path), and each film column is ``(1 - sum of substrate columns) *
      fraction``, film fractions in the order the film elements appear in
-     ``elements``. ``I_obs = transfer(D_true, L_synthetic).forward(D_true)``;
+     ``elements``. ``I_obs = transfer(D_true, L_synthetic).forward(D_true)``.
+     A layered film gives ``layers`` instead of ``film_fractions``: a list
+     from the surface down, each with ``thickness_A`` and its own
+     ``film_fractions``. The substrate columns are built as above with ``t``
+     the sum of the layer thicknesses (``thickness_A``, stored as well), and
+     a grid point at depth ``z`` takes the fractions of the first layer whose
+     lower boundary (the running sum of thicknesses) is ``>= z``; points
+     below the last boundary take the last layer's. Boundaries between film
+     layers are sharp steps on the grid, with no interface width of their
+     own; the cases put them on grid points;
    - counts: integer counts per angle and element, ``I_obs = counts /
      counts.sum(axis=1)``.
 
@@ -168,9 +177,13 @@ TOLERANCE = {
 # Inputs (numbers only; see "Where the inputs come from")
 # ----------------------------------------------------------------------
 
-BINDING_ENERGY_EV = {("Hf", "4f"): 14.0, ("O", "1s"): 531.0, ("Si", "2p"): 99.0, ("Ti", "2p"): 454.0}
+BINDING_ENERGY_EV = {("Hf", "4f"): 14.0, ("O", "1s"): 531.0, ("Si", "2p"): 99.0, ("Ti", "2p"): 454.0,
+                     ("C", "1s"): 284.0, ("Al", "1s"): 1560.0, ("Ti", "1s"): 4966.0, ("Si", "1s"): 1839.0,
+                     ("Hf", "3d"): 1662.0}
 
 COMPOUNDS = {  # N_v, density g/cm3, M g/mol, E_g eV
+    "Al2O3": (24.0, 3.95, 101.96, 7.6),
+    "C": (4.0, 2.26, 12.0107, 0.0),
     "HfO2": (16.0, 9.68, 210.49, 5.8),
     "Si": (4.0, 2.329, 28.08553, 1.12),
     "SiO2": (16.0, 2.2, 60.08, 8.9),
@@ -220,6 +233,42 @@ L_SIO2_14866_UNPOL_120 = [
     [1.28825576831, 1.50484632931, 1.28825576831], [1.27186361389, 1.41654505981, 1.27186361389],
     [1.20245, 1.24049942, 1.20245],
 ]
+L_STACK_925174_UNPOL_120 = [
+    [0.769984542915, 0.8128000123, 0.933997523071, 0.779472915676, 0.820374665342],
+    [0.877076536989, 0.917449262219, 1.0313701042, 0.886066114642, 0.924616514342],
+    [0.986497650901, 1.02312097223, 1.12608467487, 0.994696728523, 1.02964843251],
+    [1.09581933392, 1.12749132755, 1.21612105251, 1.10295857411, 1.13316464115],
+    [1.20237601857, 1.22804828887, 1.2994088388, 1.20821927626, 1.23267977517],
+    [1.30335056826, 1.32217048417, 1.37388756195, 1.30770428533, 1.32560662831],
+    [1.39587185505, 1.40721643263, 1.43757205306, 1.39859262736, 1.40934391325],
+    [1.47712065, 1.48062065, 1.48862065, 1.47812065, 1.48137065],
+    [1.54443952885, 1.53999276599, 1.52540357921, 1.54368956074, 1.53934338853],
+    [1.5954421973, 1.5832155292, 1.54656873212, 1.59297226532, 1.58119222388],
+    [1.62811753909, 1.6085374961, 1.55110203716, 1.62401491777, 1.60521148708],
+    [1.64092379269, 1.61465630407, 1.53837973342, 1.63532869678, 1.61014109868],
+    [1.63286856699, 1.60078871231, 1.50821007631, 1.6259676227, 1.59523485203],
+]
+L_HFSIO_925174_UNPOL_120 = [
+    [0.751470226035, 0.820374665342, 0.779472915676, 0.820374665342],
+    [0.821229233782, 0.924616514342, 0.886066114642, 0.924616514342],
+    [0.893848953906, 1.02964843251, 0.994696728523, 1.02964843251],
+    [0.967903667069, 1.13316464115, 1.10295857411, 1.13316464115],
+    [1.0417948644, 1.23267977517, 1.20821927626, 1.23267977517],
+    [1.11380246797, 1.32560662831, 1.30770428533, 1.32560662831],
+    [1.1821441376, 1.40934391325, 1.39859262736, 1.40934391325],
+    [1.245040315, 1.48137065, 1.47812065, 1.48137065],
+    [1.3007823459, 1.53934338853, 1.54368956074, 1.53934338853],
+    [1.34780082334, 1.58119222388, 1.59297226532, 1.58119222388],
+    [1.38473122073, 1.60521148708, 1.62401491777, 1.60521148708],
+    [1.41047393578, 1.61014109868, 1.63532869678, 1.61014109868],
+    [1.42424604603, 1.59523485203, 1.6259676227, 1.59523485203],
+]
+L_HFSIO_14866_UNPOL_120 = [
+    [0.9544, 0.9233, 1.00837558, 0.9233], [1.08728033601, 1.05461691844, 1.22960080488, 1.05461691844],
+    [1.19487009968, 1.16924231407, 1.40059967668, 1.16924231407], [1.264, 1.2515, 1.49775, 1.2515],
+    [1.28536645598, 1.28825576831, 1.50484632931, 1.28825576831],
+    [1.25542686294, 1.27186361389, 1.41654505981, 1.27186361389], [1.1776, 1.20245, 1.24049942, 1.20245],
+]
 
 # Poisson counts (1e5 per angle, numpy default_rng(7)) drawn from the
 # eh2_hfo2_uniform synthetic intensities; stored as integers so that no
@@ -250,6 +299,19 @@ SIO2_SI = [_element("Si", "2p", "SiO2", 4, "free"), _element("O", "1s", "SiO2", 
            _element("Si", "2p", "Si", 0, "substrate")]
 FILM = [1 / 3, 2 / 3]
 
+# Layered films. Film fractions follow the film elements in row order; every
+# layer is a composition the solver can represent (the linked O follows the
+# free cations by charge: none for C, 1.5 per Al, 2 per Ti, Hf or Si).
+STACK_SI = [_element("C", "1s", "C", 0, "free"), _element("Al", "1s", "Al2O3", 3, "free"),
+            _element("Ti", "1s", "TiO2", 4, "free"), _element("O", "1s", "Al2O3", -2, "linked"),
+            _element("Si", "1s", "Si", 0, "substrate")]
+STACK_LAYERS = [(20.0, [1.0, 0.0, 0.0, 0.0]), (110.0, [0.0, 0.4, 0.0, 0.6]), (110.0, [0.0, 0.0, 1 / 3, 2 / 3])]
+HFSIO_SI_1S = [_element("Hf", "3d", "HfO2", 4, "free"), _element("Si", "1s", "SiO2", 4, "free"),
+               _element("O", "1s", "HfO2", -2, "linked"), _element("Si", "1s", "Si", 0, "substrate")]
+HFSIO_SI_2P = [_element("Hf", "4f", "HfO2", 4, "free"), _element("Si", "2p", "SiO2", 4, "free"),
+               _element("O", "1s", "HfO2", -2, "linked"), _element("Si", "2p", "Si", 0, "substrate")]
+HFO2_ON_SIO2 = lambda t_hfo2, t_sio2: [(t_hfo2, [1 / 3, 0.0, 2 / 3]), (t_sio2, [0.0, 1 / 3, 2 / 3])]  # noqa: E731
+
 
 def _case(description, hv, angles, elements, depth, data, inversion):
     return {"description": description, "photon_energy_eV": hv, "theta_deg": angles,
@@ -264,6 +326,13 @@ def _synthetic(t, w, L, film=FILM, substrate=(1.0,)):
             "substrate_fractions": list(substrate), "L": L}
 
 
+def _layered(layers, w, L, substrate=(1.0,)):
+    """Synthetic data for a layered film: (thickness, film fractions) from the surface down."""
+    return {"kind": "synthetic", "thickness_A": float(sum(t for t, _ in layers)), "interface_fwhm_A": w,
+            "layers": [{"thickness_A": t, "film_fractions": list(c)} for t, c in layers],
+            "substrate_fractions": list(substrate), "L": L}
+
+
 def _inversion(L, method="LLS", alpha=None, t0=25.0, bounds=(5.0, 150.0), w=5.0, lam="uniform", rebuilds=0):
     return {"L": L, "method": method, "alpha": alpha, "thickness_init_A": t0, "thickness_bounds_A": list(bounds),
             "interface_fwhm_A": w, "lambda_composition": lam, "rebuilds": rebuilds}
@@ -272,6 +341,13 @@ def _inversion(L, method="LLS", alpha=None, t0=25.0, bounds=(5.0, 150.0), w=5.0,
 EH2 = dict(hv=7940.0, angles=_angles(25.2, 73.2, 4), depth={"step_A": 2.0, "n_points": 300})
 GAKA = dict(hv=9251.74, angles=_angles(2, 50, 4), depth={"step_A": 2.0, "n_points": 400})
 ALKA = dict(hv=1486.6, angles=_angles(0, 60, 10), depth={"step_A": 1.0, "n_points": 200})
+# Coarser grids for the layered cases: the solve time grows steeply with the
+# number of film grid points times free elements (the three-layer stack took
+# 7 s on a 10 A grid, 59 s on 5 A and 527 s on 2.5 A, with the thickness
+# within 1 A of each other).
+GAKA_STACK = dict(GAKA, depth={"step_A": 10.0, "n_points": 100})
+GAKA_HFSIO = dict(GAKA, depth={"step_A": 4.0, "n_points": 200})
+ALKA_HFSIO = dict(ALKA, depth={"step_A": 2.0, "n_points": 100})
 EH2_DATA = _synthetic(40.0, 5.0, L_HFO2_7940_POL_M40P8)
 
 # How each angular-factor table was computed:
@@ -282,6 +358,9 @@ L_SOURCES = {
     "L_TIO2_7940_POL_M40P8": (TIO2_SI, EH2, -40.8, True),
     "L_HFO2_925174_UNPOL_120": (HFO2_SI, GAKA, 120.0, False),
     "L_SIO2_14866_UNPOL_120": (SIO2_SI, ALKA, 120.0, False),
+    "L_STACK_925174_UNPOL_120": (STACK_SI, GAKA_STACK, 120.0, False),
+    "L_HFSIO_925174_UNPOL_120": (HFSIO_SI_1S, GAKA_HFSIO, 120.0, False),
+    "L_HFSIO_14866_UNPOL_120": (HFSIO_SI_2P, ALKA_HFSIO, 120.0, False),
 }
 
 
@@ -324,6 +403,22 @@ def _cases():
             "table is clamped below 1.5 keV", ALKA["hv"], ALKA["angles"], SIO2_SI, ALKA["depth"],
             _synthetic(15.0, 3.0, L_SIO2_14866_UNPOL_120),
             _inversion(L_SIO2_14866_UNPOL_120, t0=10.0, bounds=(2.0, 60.0), w=3.0)),
+        "gaka_c_al2o3_tio2_layered": _case(
+            "C (20 A) / Al2O3 (110 A) / TiO2 (110 A) / Si at 9251.74 eV, 1s levels, unpolarized; a layered "
+            "film on a 10 A grid, lambda from a uniform composition", GAKA_STACK["hv"], GAKA_STACK["angles"],
+            STACK_SI, GAKA_STACK["depth"], _layered(STACK_LAYERS, 5.0, L_STACK_925174_UNPOL_120),
+            _inversion(L_STACK_925174_UNPOL_120, t0=200.0, bounds=(20.0, 500.0))),
+        "gaka_hfo2_sio2_layered": _case(
+            "HfO2 (32 A) / SiO2 (8 A) / Si at 9251.74 eV, Hf 3d, Si 1s and O 1s, unpolarized; a layered film "
+            "on a 4 A grid", GAKA_HFSIO["hv"], GAKA_HFSIO["angles"], HFSIO_SI_1S, GAKA_HFSIO["depth"],
+            _layered(HFO2_ON_SIO2(32.0, 8.0), 5.0, L_HFSIO_925174_UNPOL_120),
+            _inversion(L_HFSIO_925174_UNPOL_120)),
+        "alka_hfo2_sio2_layered": _case(
+            "HfO2 (16 A) / SiO2 (6 A) / Si at 1486.6 eV, Hf 4f, Si 2p and O 1s, unpolarized; a thin layered "
+            "film on a 2 A grid; the angular-factor table is clamped below 1.5 keV", ALKA_HFSIO["hv"],
+            ALKA_HFSIO["angles"], HFSIO_SI_2P, ALKA_HFSIO["depth"],
+            _layered(HFO2_ON_SIO2(16.0, 6.0), 3.0, L_HFSIO_14866_UNPOL_120),
+            _inversion(L_HFSIO_14866_UNPOL_120, t0=15.0, bounds=(2.0, 80.0), w=3.0)),
     }
 
 
@@ -413,7 +508,15 @@ def truth_profile(case, z):
                                     np.array(data["substrate_fractions"]), use_numba=False)
     D[:, idx["substrate"]] = D_sub
     share = 1.0 - D_sub.sum(axis=1)
-    for k, i in enumerate(sorted(idx["free"] + idx["linked"])):
+    film = sorted(idx["free"] + idx["linked"])
+    if "layers" in data:
+        edges = np.cumsum([layer["thickness_A"] for layer in data["layers"]])
+        which = np.minimum(np.searchsorted(edges, z, side="left"), len(edges) - 1)
+        fractions = np.array([layer["film_fractions"] for layer in data["layers"]])[which]
+        for k, i in enumerate(film):
+            D[:, i] = share * fractions[:, k]
+        return D
+    for k, i in enumerate(film):
         D[:, i] = share * data["film_fractions"][k]
     return D
 
